@@ -21,5 +21,7 @@ export interface QuizListProps {
   sentLabel?: string;
   sentValue?: number;
   showGeneratedStat?: boolean;
+  sendError?: string | null;
+  onClearError?: () => void;
   className?: string;
 }

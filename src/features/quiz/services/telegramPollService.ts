@@ -37,6 +37,14 @@ export async function sendQuizToTelegram(
   settings: TelegramSettings,
   targetChatId?: string
 ): Promise<boolean> {
+  if (question.options.length < 2 || question.options.length > 10) {
+    throw new Error("Telegram polls must have between 2 and 10 options.");
+  }
+
+  if (question.correctOptionIndex < 0 || question.correctOptionIndex >= question.options.length) {
+    throw new Error("Correct option index is invalid for this quiz.");
+  }
+
   const cleanToken = settings.botToken.trim().replace(/^bot/i, '');
   const cleanChatId = (targetChatId || settings.activeChannelId || settings.chatId || '').trim();
 
@@ -77,11 +85,12 @@ export async function sendQuizToTelegram(
   const payload: any = {
     chat_id: cleanChatId,
     question: finalQuestion,
-    options: JSON.stringify(question.options),
+    options: question.options,
     is_anonymous: true,
     type: "quiz",
     correct_option_id: question.correctOptionIndex,
     explanation: finalExplanation,
+    explanation_parse_mode: "HTML",
   };
 
   if (replyToMessageId) payload.reply_to_message_id = replyToMessageId;
@@ -96,11 +105,18 @@ export async function sendQuizToTelegram(
 
   if (!data.ok) {
     let errorMessage = data.description || "Failed to send quiz to Telegram";
-    if (errorMessage.toLowerCase().includes("chat not found")) {
-      errorMessage = `Chat not found! ID used: "${cleanChatId}". Please ensure the bot is added as an Admin, and the Chat ID is exactly correct.`;
-    } else if (errorMessage.toLowerCase().includes("unauthorized")) {
-      errorMessage = "Unauthorized! Your Bot Token might be incorrect.";
+    
+    const desc = errorMessage.toLowerCase();
+    if (desc.includes("chat not found")) {
+      errorMessage = `Chat not found! (ID: ${cleanChatId}). Ensure the bot is an Admin there.`;
+    } else if (desc.includes("user_bot_to_bot_disabled")) {
+      errorMessage = "Bots cannot message other bots. Please use a Channel or Group ID instead.";
+    } else if (desc.includes("unauthorized")) {
+      errorMessage = "Invalid Bot Token. Check settings.";
+    } else if (desc.includes("message is too long")) {
+      errorMessage = "Quiz text exceeds Telegram's limit. Try shortening it.";
     }
+    
     throw new Error(errorMessage);
   }
 

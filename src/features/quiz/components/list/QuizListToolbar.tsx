@@ -64,38 +64,41 @@ export default function QuizListToolbar({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
-        {settings.channels && settings.channels.length > 0 && (
-          <div className="flex flex-col gap-1.5 flex-1">
-            <label className="text-sm font-medium text-slate-700 px-1 flex items-center justify-between">
-              Target Channel
-              {user && settings.selectedChannelIds && settings.selectedChannelIds.length > 1 && (
-                <span className="text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full font-bold">
-                  {settings.selectedChannelIds.length} SELECTED
-                </span>
-              )}
-            </label>
-            <select
-              value={settings.activeChannelId || ''}
-              onChange={(e) => onChannelChange(e.target.value)}
-              className="p-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm cursor-pointer w-full"
-            >
-              {visibleChannels.map(c => (
-                <option key={c.id} value={c.id}>{c.name} ({c.type})</option>
-              ))}
-            </select>
-          </div>
-        )}
+      {settings.channels && settings.channels.length > 0 && (
+        <div className="flex flex-col gap-1.5 w-full">
+          <label className="text-[10px] lg:text-[11px] uppercase font-bold text-slate-400 px-1 flex items-center justify-between tracking-wider">
+            Target Channel
+            {user && settings.selectedChannelIds && settings.selectedChannelIds.length > 1 && (
+              <span className="text-[8px] lg:text-[10px] bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full font-bold">
+                {settings.selectedChannelIds.length} SELECTED
+              </span>
+            )}
+          </label>
+          <select
+            value={settings.activeChannelId || ''}
+            onChange={(e) => onChannelChange(e.target.value)}
+            className="p-2 lg:p-3 bg-white border border-slate-200 rounded-xl text-xs lg:text-sm font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none shadow-sm cursor-pointer w-full transition-all hover:border-slate-300"
+          >
+            {visibleChannels.map(c => (
+              <option key={c.id} value={c.id}>{c.name} ({c.type})</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3">
+        <div className="w-full">
+          <DisplayConfig displayPrefix={displayPrefix || ''} displaySuffix={displaySuffix || ''} />
+        </div>
+        <div className="w-full">
+          <SendButton 
+            isSending={isSending} 
+            sendableCount={sendableCount} 
+            allSent={allSent} 
+            handleSendAll={handleSendAll} 
+          />
+        </div>
       </div>
-      
-      <DisplayConfig displayPrefix={displayPrefix || ''} displaySuffix={displaySuffix || ''} />
-      
-      <SendButton 
-        isSending={isSending} 
-        sendableCount={sendableCount} 
-        allSent={allSent} 
-        handleSendAll={handleSendAll} 
-      />
     </div>
   );
 }

@@ -27,9 +27,9 @@ export default function DesktopNav({ user }: { user: any }) {
             <Layout className="w-4 h-4" />
             Features
           </NavLink>
-          <NavLink to="/admin/settings" className={linkClass}>
+          <NavLink to="/settings" className={linkClass}>
             <Settings className="w-4 h-4" />
-            App Settings
+            Settings
           </NavLink>
         </>
       )}
@@ -89,6 +89,12 @@ export default function DesktopNav({ user }: { user: any }) {
         <NavLink to="/about" className={linkClass}>
           <Info className="w-4 h-4" />
           About
+        </NavLink>
+      )}
+      {user && !isAdmin && (
+        <NavLink to="/settings" className={linkClass}>
+          <Settings className="w-4 h-4" />
+          Settings
         </NavLink>
       )}
     </nav>

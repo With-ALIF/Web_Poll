@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential, deleteUser, signOut } from 'firebase/auth';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential, deleteUser, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator, terminate, clearIndexedDbPersistence } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -23,4 +23,4 @@ async function checkConnectivity() {
 }
 checkConnectivity();
 
-export { firebaseConfig, createUserWithEmailAndPassword, signInWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential, deleteUser, signOut };
+export { firebaseConfig, createUserWithEmailAndPassword, signInWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential, deleteUser, signOut, sendPasswordResetEmail };

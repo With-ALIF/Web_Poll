@@ -74,10 +74,6 @@ export default function MobileMenu({ user, profilePhoto, displayName, logout, to
               <Layout className="w-5 h-5" />
               Feature  
             </NavLink>
-            <NavLink to="/admin/settings" onClick={toggleMenu} className={linkClass}>
-              <Settings className="w-5 h-5" />
-              App Settings
-            </NavLink>
           </>
         )}
 
@@ -144,14 +140,14 @@ export default function MobileMenu({ user, profilePhoto, displayName, logout, to
           </NavLink>
         )}
         
-        {user && !isAdmin && (
+        {user && (
           <NavLink to="/profile" onClick={toggleMenu} className={linkClass}>
             <User className="w-5 h-5" />
             Profile
           </NavLink>
         )}
         
-        {user && !isAdmin && (
+        {user && (
           <NavLink to="/settings" onClick={toggleMenu} className={linkClass}>
             <Settings className="w-5 h-5" />
             Settings

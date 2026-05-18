@@ -80,7 +80,6 @@ export const Sidebar: React.FC = () => {
             <NavItem to="/system-stats" icon={BarChart3} label="Dashboard" />
             <NavItem to="/admin" icon={Shield} label="Users Panel" />
             <NavItem to="/admin/features" icon={Layout} label="Features" />
-            <NavItem to="/admin/settings" icon={Settings} label="App Settings" />
           </>
         ) : (
           <>

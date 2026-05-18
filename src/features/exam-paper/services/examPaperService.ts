@@ -12,7 +12,7 @@ export async function generateExamPaper(
   retries: number = 2
 ): Promise<ExamPaper> {
   const prompt = getMCQPrompt(content, settings);
-  const schema = getResponseSchema(false);
+  const schema = getResponseSchema();
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     const { client, index } = getActiveClientInfo();

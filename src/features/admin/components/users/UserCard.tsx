@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'motion/react';
-import { Shield, User as UserIcon } from 'lucide-react';
+import { Shield, User as UserIcon, BarChart3, Send } from 'lucide-react';
 import { AdminUser } from '../../types';
 import { AVAILABLE_PAGES } from '../../constants';
 import { UserMenu } from './UserMenu';
@@ -19,7 +19,7 @@ export const UserCard: React.FC<UserCardProps> = ({
   return (
     <motion.div 
       layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-      className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col"
+      className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col relative"
     >
       <div className="p-5 flex-1">
         <div className="flex items-start justify-between mb-4">
@@ -32,8 +32,32 @@ export const UserCard: React.FC<UserCardProps> = ({
               <p className="text-slate-500 text-xs font-medium">{user.email}</p>
             </div>
           </div>
-          <UserMenu userId={user.id} activeMenuId={activeMenuId} setActiveMenuId={setActiveMenuId} onManageAccess={() => onManageAccess(user)} onDelete={() => onDelete(user.id)} />
+          <UserMenu 
+            userId={user.id} 
+            activeMenuId={activeMenuId} 
+            setActiveMenuId={setActiveMenuId} 
+            onManageAccess={() => onManageAccess(user)} 
+            onDelete={() => onDelete(user.id)}
+          />
         </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-5">
+          <div className="p-3 bg-indigo-50/50 rounded-xl border border-indigo-100 flex flex-col">
+            <div className="flex items-center gap-2 text-indigo-600 mb-1">
+              <BarChart3 className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-bold uppercase tracking-tight">Generated</span>
+            </div>
+            <div className="text-xl font-black text-indigo-900">{user.stats?.generated || 0}</div>
+          </div>
+          <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-100 flex flex-col">
+            <div className="flex items-center gap-2 text-emerald-600 mb-1">
+              <Send className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-bold uppercase tracking-tight">Sent</span>
+            </div>
+            <div className="text-xl font-black text-emerald-900">{user.stats?.sent || 0}</div>
+          </div>
+        </div>
+
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-slate-900 font-bold text-sm"><Shield className="w-4 h-4 text-indigo-500" />Assigned Features</div>
           <div className="flex flex-wrap gap-2">

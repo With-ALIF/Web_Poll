@@ -9,6 +9,7 @@ import { UserDirectory } from '../components/users/UserDirectory';
 import { CreateUserModal } from '../components/management/CreateUserModal';
 import { PermissionModal } from '../components/management/PermissionModal';
 import { AdminUser } from '../types';
+import { generateGlobalUserReportPDF } from '../utils/pdfExport';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -20,6 +21,19 @@ export default function AdminDashboard() {
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleDownloadGlobalPDF = () => {
+    setIsExporting(true);
+    try {
+      generateGlobalUserReportPDF(filteredUsers);
+    } catch (error) {
+      console.error('Error generating global PDF:', error);
+      alert('Failed to generate user list PDF.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const handleOpenPermissions = (user: AdminUser) => {
     setSelectedUser(user);
@@ -36,7 +50,12 @@ export default function AdminDashboard() {
   return (
     <div className="max-w-6xl mx-auto px-4 pt-2 pb-8">
       <AdminHeader onCreateClick={() => setShowCreateModal(true)} />
-      <UserSearch value={searchTerm} onChange={setSearchTerm} />
+      <UserSearch 
+        value={searchTerm} 
+        onChange={setSearchTerm} 
+        onDownloadPDF={handleDownloadGlobalPDF} 
+        isDownloading={isExporting}
+      />
       <UserDirectory users={filteredUsers} activeMenuId={activeMenuId} setActiveMenuId={setActiveMenuId} onManageAccess={handleOpenPermissions} onDelete={handleDelete} />
       
       {showCreateModal && <CreateUserModal onClose={() => setShowCreateModal(false)} onSubmit={handleCreateUser} loading={actionLoading} />}

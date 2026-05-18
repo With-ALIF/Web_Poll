@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import { User, onAuthStateChanged, signOut } from 'firebase/auth';
 import { auth, db } from '../backend/firebase';
-import { createUserProfile, signInWithEmail, signUpWithEmail } from '../features/auth/services/authService';
+import { createUserProfile, signInWithEmail, signUpWithEmail, resetPassword } from '../features/auth/services/authService';
 import { fetchAppConfig } from '../features/admin/services/adminSettingsService';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { ADMIN_EMAILS } from '../features/auth/constants';
@@ -14,6 +14,7 @@ interface AuthContextType {
   loading: boolean;
   loginWithEmail: (email: string, password: string) => Promise<User>;
   signUpWithEmailAuth: (email: string, password: string) => Promise<User>;
+  resetPasswordAuth: (email: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -133,6 +134,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return await signUpWithEmail(email, password);
   };
 
+  const resetPasswordAuth = async (email: string) => {
+    return await resetPassword(email);
+  };
+
   const logout = async () => {
     try {
       localStorage.clear();
@@ -151,6 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     loginWithEmail,
     signUpWithEmailAuth,
+    resetPasswordAuth,
     logout
   }), [mergedUser, profile, appConfig, isAdmin, loading]);
 

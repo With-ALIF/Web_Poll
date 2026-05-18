@@ -52,6 +52,11 @@ TeleQuiz is a comprehensive, full-stack web application designed to streamline t
 - **Photocard Editor**: A sophisticated tool for generating branded promotional images ("photocards"). Features include customizable layouts, logo positioning, background image selection, social media handle placement, and preset management for consistent branding.
 - **OCR/Data Processing**: Utilities to extract text or structured data from mixed-format sources to prepopulate content for both the Quiz Generation and Exam Paper tools, reducing manual data entry.
 
+### 2.8. UI/UX Layout Optimization
+- **Responsive Toolbar Design**: The `QuizListToolbar` and `QuizListHeader` have been optimized for high-density information display. On desktop, typography is scaled up for better legibility (e.g., larger select fields and labels), while on mobile, a vertical "stacked" layout is used to prevent horizontal clipping.
+- **Improved Information Hierarchy**: Stats cards (Generated/Sent) and configuration previews (Prefix/Suffix) now feature subtle shadows, refined indigo/purple color palettes, and clear uppercase labels for a professional, "dashboard-like" aesthetic.
+- **Action-Oriented Workflow**: The main "Send All" button is now more prominent and consistently positioned at the bottom of the toolbar configuration on mobile or as a clear CTA on desktop.
+
 ## 3. Branding
 - **Logo**: The application features a custom logo (Purple/White Playful Quiz Time branding) used as the favicon, Apple touch icon, and in the authentication headers.
 - **App Name**: TeleQuiz.
@@ -136,7 +141,7 @@ TeleQuiz is a comprehensive, full-stack web application designed to streamline t
 ## 8. Development Guidelines
 
 ### 8.1. Component Development
-- All `.tsx` files should be kept under 50 lines of code for modularity.
+- All `.tsx` files should be kept under 120 lines of code for modularity (extended to accommodate rich UI components).
 - Use functional components and hooks.
 - Use Tailwind CSS for all styling.
 
@@ -155,7 +160,6 @@ TeleQuiz is a comprehensive, full-stack web application designed to streamline t
 - Implement advanced analytics for sent polls.
 - Add support for more AI models for content generation.
 - Enhance CSV Modifier with more advanced data transformation options.
-- Improve mobile responsiveness for bulk action tools.
 - Implement unit and integration tests for core features.
 - Optimize Firestore queries for better performance.
 - Add support for custom themes in quiz generation.

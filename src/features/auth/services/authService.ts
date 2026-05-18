@@ -1,10 +1,20 @@
 import { doc, getDoc, setDoc, serverTimestamp, deleteDoc, increment } from 'firebase/firestore';
-import { db, auth, createUserWithEmailAndPassword, signInWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential, deleteUser } from '../../../backend/firebase';
+import { db, auth, createUserWithEmailAndPassword, signInWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential, deleteUser, sendPasswordResetEmail } from '../../../backend/firebase';
 import { User } from 'firebase/auth';
 import { handleFirestoreError, OperationType } from '../../../lib/firestoreUtils';
 import { ADMIN_EMAILS } from '../constants';
 
 const profileCheckCache = new Set<string>();
+
+export const resetPassword = async (email: string) => {
+  try {
+    await sendPasswordResetEmail(auth, email);
+    console.log("Password reset email sent to:", email);
+  } catch (error) {
+    console.error("Error in resetPassword:", error);
+    throw error;
+  }
+};
 
 export const createUserProfile = async (user: User) => {
   if (profileCheckCache.has(user.uid)) {

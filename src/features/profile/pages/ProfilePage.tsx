@@ -4,7 +4,7 @@ import { useAuth } from '../../auth/hooks/useAuth';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../../backend/firebase';
 import { deleteUserAccount } from '../../auth/services/authService';
-import { Shield, BarChart3, Users } from 'lucide-react';
+import { Shield, BarChart3, Users, LogOut } from 'lucide-react';
 import ProfileHeader from '../components/ProfileHeader';
 import ProfileAvatar from '../components/ProfileAvatar';
 import ProfileInfo from '../components/ProfileInfo';
@@ -104,6 +104,16 @@ export default function ProfilePage() {
           loading={loading}
           onSave={handleSave}
         />
+
+        <div className="pt-4">
+          <button
+            onClick={logout}
+            className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl font-bold transition-all active:scale-95"
+          >
+            <LogOut className="w-5 h-5" />
+            Sign Out Account
+          </button>
+        </div>
 
         {isAdmin && (
           <div className="mt-8 pt-8 border-t border-gray-200">

@@ -1,5 +1,6 @@
 import React from 'react';
-import { AnimatePresence } from 'motion/react';
+import { AlertCircle, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import QuizListHeader from './QuizListHeader';
 import QuizListToolbar from './QuizListToolbar';
 import QuizEmptyState from '../core/QuizEmptyState';
@@ -31,6 +32,8 @@ export default function QuizList({
   sentLabel,
   sentValue,
   showGeneratedStat,
+  sendError,
+  onClearError,
   className = ""
 }: QuizListProps) {
   const { selectedTopic, setSelectedTopic, filteredQuestions } = useQuizFilter(questions);
@@ -50,7 +53,11 @@ export default function QuizList({
   };
 
   const onSendSelected = () => {
-    handleSendSelected(selectedIds);
+    if (selectedIds.length > 0) {
+      handleSendSelected(selectedIds);
+    } else {
+      handleSendAll();
+    }
     clearSelection();
   };
 
@@ -88,9 +95,37 @@ export default function QuizList({
         />
       </QuizListHeader>
 
+      <AnimatePresence>
+        {sendError && (
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="bg-red-50 border border-red-100 p-4 rounded-2xl flex items-start gap-3 shadow-sm"
+          >
+            <div className="bg-red-100 p-1.5 rounded-lg text-red-600 shrink-0">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h4 className="text-sm font-bold text-red-900">Send Error</h4>
+              <p className="text-xs text-red-700 mt-0.5 leading-relaxed break-words">{sendError}</p>
+            </div>
+            {onClearError && (
+              <button 
+                onClick={onClearError}
+                className="p-1 hover:bg-red-100 rounded-lg text-red-400 hover:text-red-600 transition-all"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <QuizExportSection 
         questions={exportQuestions} 
         selectedCount={selectedCount}
+        onSendToTelegram={() => onSendSelected()}
       />
 
       <QuizBulkSection 

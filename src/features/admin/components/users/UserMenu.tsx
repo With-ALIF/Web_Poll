@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Lock, Trash2, MoreVertical } from 'lucide-react';
+import { Lock, Trash2, MoreVertical, FileDown } from 'lucide-react';
 
 interface UserMenuProps {
   userId: string;
@@ -11,7 +11,7 @@ interface UserMenuProps {
 }
 
 export const UserMenu: React.FC<UserMenuProps> = ({ 
-  userId, activeMenuId, setActiveMenuId, onManageAccess, onDelete 
+  userId, activeMenuId, setActiveMenuId, onManageAccess, onDelete
 }) => {
   const isOpen = activeMenuId === userId;
 

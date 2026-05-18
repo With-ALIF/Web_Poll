@@ -7,6 +7,10 @@ export interface AdminUser {
   permissions: string[];
   photoURL?: string;
   createdAt?: { seconds: number };
+  stats?: {
+    generated: number;
+    sent: number;
+  };
 }
 
 export interface PageDefinition {

@@ -14,7 +14,8 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() && 
         (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-         (request.auth.token.email == "alifweb@gmail.com" && request.auth.token.email_verified == true));
+         request.auth.token.email == "alifweb@gmail.com" ||
+         request.auth.token.email == "alifbrur16@gmail.com");
     }
 
     function hasRequiredFields(fields) {
@@ -33,7 +34,7 @@ service cloud.firestore {
 
     // Quiz validation
     function isValidQuiz(data) {
-      return data.userId is string && data.userId == request.auth.uid;
+      return data.userId is string && (data.userId == request.auth.uid || isAdmin());
     }
 
     // User profiles
@@ -47,18 +48,18 @@ service cloud.firestore {
 
     // Quiz questions
     match /quizzes/{quizId} {
-      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isAuthenticated() && isValidQuiz(request.resource.data);
-      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid && request.resource.data.userId == resource.data.userId;
-      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // Drafts
     match /drafts/{draftId} {
-      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isAuthenticated() && isValidQuiz(request.resource.data);
-      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid && request.resource.data.userId == resource.data.userId;
-      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // User settings

@@ -60,6 +60,8 @@ export const useFeatureRoutes = ({ appState, handleDraftSelected }: FeatureRoute
                     stats={quiz.stats}
                     settings={settings.settings}
                     onChannelChange={(id) => settings.saveSettings({ ...settings.settings, activeChannelId: id })}
+                    sendError={telegram.sendError}
+                    onClearError={() => telegram.setSendError(null)}
                   />
                 </div>
               </div>
@@ -95,6 +97,8 @@ export const useFeatureRoutes = ({ appState, handleDraftSelected }: FeatureRoute
                 stats={quiz.stats}
                 settings={settings.settings}
                 onChannelChange={(id) => settings.saveSettings({ ...settings.settings, activeChannelId: id })}
+                sendError={telegram.sendError}
+                onClearError={() => telegram.setSendError(null)}
                 title="Total Polls"
                 sentLabel="Total Poll"
                 sentValue={sentQuestions.length}

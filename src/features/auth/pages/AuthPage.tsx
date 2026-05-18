@@ -14,13 +14,30 @@ export default function AuthPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [creds, setCreds] = useState({ email: '', password: '', show: false });
   const [error, setError] = useState('');
-  const { loginWithEmail, signUpWithEmailAuth } = useAuth();
+  const [message, setMessage] = useState('');
+  const { loginWithEmail, signUpWithEmailAuth, resetPasswordAuth } = useAuth();
   const navigate = useNavigate();
   const adminReq = useAdminRequest();
+
+  const handleResetPassword = async () => {
+    if (!creds.email) {
+      setError('Please enter your email address first.');
+      return;
+    }
+    setError('');
+    setMessage('');
+    try {
+      await resetPasswordAuth(creds.email);
+      setMessage('Password reset email sent! Please check your inbox.');
+    } catch (err: any) {
+      setError(err.message || 'Failed to send reset email.');
+    }
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setMessage('');
     try {
       if (isSignUp) {
         await signUpWithEmailAuth(creds.email, creds.password);
@@ -31,7 +48,14 @@ export default function AuthPage() {
         else navigate('/');
       }
     } catch (err: any) {
-      setError(err.code === 'auth/email-already-in-use' ? 'Email in use.' : (err.message || 'Auth failed'));
+      console.error('Auth handler error:', err);
+      let msg = 'Authentication failed. Please try again.';
+      if (err.code === 'auth/wrong-password') msg = 'Incorrect password. Please verify and try again.';
+      else if (err.code === 'auth/user-not-found') msg = 'No account found with this email.';
+      else if (err.code === 'auth/invalid-email') msg = 'Please enter a valid email address.';
+      else if (err.code === 'auth/email-already-in-use') msg = 'This email is already in use.';
+      else if (err.message) msg = err.message;
+      setError(msg);
     }
   };
 
@@ -57,13 +81,25 @@ export default function AuthPage() {
             </p>
           </div>
         )}
+        {message && (
+          <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 mb-6 flex items-center gap-3 text-emerald-600 text-sm">
+            <div className="shrink-0 p-1 bg-emerald-100 rounded-full">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <p className="font-medium">{message}</p>
+          </div>
+        )}
         {isSignUp ? (
           <div className="space-y-6">
             <SignUpAccessInfo />
             <AdminContactList onAdminClick={adminReq.handleAdminClick} showAdmins={adminReq.showAdmins} setShowAdmins={adminReq.setShowAdmins} />
           </div>
         ) : (
-          <AuthForm isSignUp={false} email={creds.email} setEmail={e => setCreds({...creds, email: e})} password={creds.password} setPassword={e => setCreds({...creds, password: e})} showPassword={creds.show} setShowPassword={s => setCreds({...creds, show: s})} onSubmit={handleAuth} />
+          <div className="space-y-4">
+            <AuthForm isSignUp={false} email={creds.email} setEmail={e => setCreds({...creds, email: e})} password={creds.password} setPassword={e => setCreds({...creds, password: e})} showPassword={creds.show} setShowPassword={s => setCreds({...creds, show: s})} onSubmit={handleAuth} />
+          </div>
         )}
         <AuthToggle isSignUp={isSignUp} onToggle={() => setIsSignUp(!isSignUp)} />
       </div>
