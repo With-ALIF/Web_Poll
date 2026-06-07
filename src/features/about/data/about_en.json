@@ -1,0 +1,133 @@
+{
+  "header": {
+    "title": "About TeleQuiz",
+    "description": "TeleQuiz is an AI-powered all-in-one tool that can automatically generate quizzes from any text or paragraph. It is capable of sending them directly to your Telegram channel as Polls, and now includes user profile and history management features."
+  },
+  "sections": [
+    {
+      "id": "setup",
+      "title": "1. Telegram Bot Setup",
+      "icon": "Settings",
+      "theme": "blue",
+      "items": [
+        "You can use this bot in both your Telegram <strong>Channel</strong> and <strong>Group</strong>.",
+        "First, add the <a href=\"https://t.me/web_poll_bot\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-blue-600 hover:underline font-medium\">@web_poll_bot</a> bot to your channel  as an <strong>Admin</strong>."
+      ]
+    },
+    {
+      "id": "find-chat-id",
+      "title": "2. How to find your Chat ID?",
+      "icon": "MessageCircle",
+      "theme": "indigo",
+      "items": [
+        "Open Telegram and go to <a href=\"https://t.me/web_poll_bot\" target=\"_blank\" rel=\"noopener noreferrer\" class=\"text-blue-600 hover:underline font-medium\">@web_poll_bot</a>.",
+        "Send any message (e.g., \"hello\") or type <strong>/id</strong> to the bot.",
+        "The bot will immediately reply with your correct <strong>Chat ID</strong>. (To avoid annoying messages, the bot only auto-replies to the first message. To find the ID later, type <strong>/id</strong>)",
+        "Copy that ID and paste it into the box on the settings page."
+      ]
+    },
+    {
+      "id": "generate",
+      "title": "3. Generating Quizzes",
+      "icon": "BookOpen",
+      "theme": "amber",
+      "items": [
+        "Paste your text or paragraph into the box on the left side of the home page.",
+        "Select how many questions you want (maximum 50).",
+        "Click the <strong>Generate Quizzes</strong> button.",
+        "The AI will read your text and create quizzes with correct answers and explanations."
+      ]
+    },
+    {
+      "id": "image-poll",
+      "title": "4. Polls with Images",
+      "icon": "ImageIcon",
+      "theme": "emerald",
+      "items": [
+        "After the quiz is generated, click <strong>Edit (pencil icon)</strong> on the right side of each question.",
+        "Upload your image from the <strong>Image (Optional)</strong> option there.",
+        "Save it. When sending to Telegram, the image will go first, followed by the poll as a reply."
+      ]
+    },
+    {
+      "id": "send",
+      "title": "5. Sending to Telegram",
+      "icon": "Send",
+      "theme": "blue",
+      "items": [
+        "You can send them one by one by clicking the <strong>Send to Telegram</strong> button under each quiz.",
+        "Or, select multiple quizzes using checkboxes and click the <strong>Send Selected</strong> button.",
+        "You can send all quizzes at once by clicking the <strong>Send All Pending</strong> button."
+      ]
+    },
+    {
+      "id": "topic-management",
+      "title": "6. Organizing by Poll Topic or Subject",
+      "icon": "Tag",
+      "theme": "indigo",
+      "items": [
+        "While editing any poll, you can save it with a <strong>Topic / Subject</strong> (e.g., History, Science, Chapter 1).",
+        "You can set topics for multiple polls at once using <strong>Bulk Action</strong>.",
+        "Use the <strong>Topic Filter</strong> at the top of the poll list to easily view polls of a specific subject."
+      ]
+    },
+    {
+      "id": "export",
+      "title": "7. Quiz Export",
+      "icon": "Download",
+      "theme": "emerald",
+      "items": [
+        "After generating quizzes, you can save them to your device if you wish.",
+        "Click the <strong>CSV</strong> or <strong>JSON</strong> button from the <strong>Export Quizzes</strong> section at the top of the quiz list.",
+        "The CSV file will have questions, options, correct answers, explanations, types, and sections neatly organized."
+      ]
+    },
+    {
+      "id": "drafts",
+      "title": "8. Draft Polls",
+      "icon": "FileText",
+      "theme": "slate",
+      "items": [
+        "You can save your created quizzes as drafts to be used later.",
+        "From the Drafts page, you can select multiple polls for <strong>Bulk Delete</strong> or <strong>Send Selected</strong>.",
+        "There is also an option to download selected drafts directly as a <strong>CSV</strong> file.",
+        "Clicking on any draft card allows you to view its question, options, and explanation in detail."
+      ]
+    },
+    {
+      "id": "auth",
+      "title": "9. User Profile & Security",
+      "icon": "User",
+      "theme": "blue",
+      "items": [
+        "Sign in with  email to keep your quizzes and settings secure.",
+        "Once signed in, you can view your profile and your created polls will be stored as history.",
+        "If not logged in, profile and poll history options will remain hidden."
+      ]
+    },
+    {
+      "id": "ai-feature",
+      "title": "10. AI Quiz Generation (AI Feature)",
+      "icon": "Sparkles",
+      "theme": "purple",
+      "items": [
+        "We have integrated the powerful Gemini AI, which can generate quizzes from any text you provide in seconds.",
+        "It automatically creates correct answers and detailed explanations for every question.",
+        "It works seamlessly in both Bengali and English languages.",
+        "You can easily edit the AI-generated quizzes to match your specific needs."
+      ]
+    }
+  ],
+  "footerNote": {
+    "title": "Important Note:",
+    "description": "Since this is a web app, you must keep this browser tab open while sending multiple quizzes. If you close the tab or lose internet connection, the quiz sending will stop."
+  },
+  "developer": {
+    "title": "Developer",
+    "name": "Abdullah Al Khalid Alif",
+    "logo": "https://github.com/With-ALIF/logo_zone/blob/main/alif/logo.jpg?raw=true",
+    "email": "alifbrur16@gmail.com",
+    "github": "https://github.com/With-ALIF",
+    "telegram": "https://t.me/ALIF1230"
+  }
+}
