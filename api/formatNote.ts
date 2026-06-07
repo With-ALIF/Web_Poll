@@ -74,21 +74,18 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ error: 'Content is required' });
   }
 
-  try {
-    const aiInstance = getAI();
-    
-    const isShortTopic = content.trim().length < 200;
-    
-    let promptSuffix = '';
-    if (isShortTopic) {
-      promptSuffix = `The user input is extremely short (under 200 characters) and is likely a topic name, concept, chapter, or keyword (for example, "${content.trim()}").
+  const isShortTopic = content.trim().length < 200;
+  
+  let promptSuffix = '';
+  if (isShortTopic) {
+    promptSuffix = `The user input is extremely short (under 200 characters) and is likely a topic name, concept, chapter, or keyword (for example, "${content.trim()}").
 Since the user only provided a topic name instead of full study material, you MUST proactively write a highly comprehensive, extremely detailed, and complete college/admission level study note on this topic ("${content.trim()}") from scratch using your own knowledge. 
 Generate extensive background, core definitions, mathematical equations, properties, classifications, units, dimension tables, and classic exam tips so the student gets a fully complete note without requiring pre-written text.`;
-    } else {
-      promptSuffix = `The user has provided a detailed draft or raw notes. Use this raw text as the source of truth, organize it, clean it up, make it comprehensive, and format it beautifully. Ensure you keep all facts, numbers, and detailed theories from the input intact.`;
-    }
+  } else {
+    promptSuffix = `The user has provided a detailed draft or raw notes. Use this raw text as the source of truth, organize it, clean it up, make it comprehensive, and format it beautifully. Ensure you keep all facts, numbers, and detailed theories from the input intact.`;
+  }
 
-    const prompt = `You are an expert Educational & General Note Formatter who generates beautifully structured, extremely informative, and context-rich study notes.
+  const prompt = `You are an expert Educational & General Note Formatter who generates beautifully structured, extremely informative, and context-rich study notes.
 
 User Input Topic/Content:
 """
@@ -111,15 +108,56 @@ Formatting & Style Rules:
 6. **Linguistic Tone**: Keep the language exactly as requested (usually Bengali mixed with core English terms in parentheses, e.g., "ভৌত রাশি (Physical Quantity)"). Keep a warm, scholastic, and highly helpful tone.
 7. **No Meta Comments**: Avoid any introductory or closing statements (like "Here is the note:"). Output ONLY the direct markdown notes itself.`;
 
-    const response = await aiInstance.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-    });
+  const clients = getAIClients();
+  let lastError: any = null;
+  let formatted = "";
+  
+  const attemptsCount = Math.max(1, clients.length);
+  const startIndex = currentClientIndex;
 
-    const formatted = response.text || "";
-    return res.status(200).json({ formattedNote: formatted });
-  } catch (error: any) {
-    console.error("Gemini Note Formatting Error:", error);
-    return res.status(500).json({ error: error.message || 'Failed to generate note using Gemini.' });
+  for (let attempt = 0; attempt < attemptsCount; attempt++) {
+    const activeIndex = (startIndex + attempt) % clients.length;
+    const aiInstance = clients[activeIndex];
+
+    try {
+      console.log(`[Note Generation] Attempting generation with API key index ${activeIndex + 1}/${clients.length}`);
+      const response = await aiInstance.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: prompt,
+      });
+
+      formatted = response.text || "";
+      // Update global index to the next one to distribute load gracefully next time
+      currentClientIndex = (activeIndex + 1) % clients.length;
+      console.log(`[Note Generation] Successfully generated formatted note using key index ${activeIndex + 1}`);
+      break;
+    } catch (error: any) {
+      lastError = error;
+      console.error(`[Note Generation] Error on key index ${activeIndex + 1}/${clients.length}:`, error.message || error);
+      
+      // Delay slightly for rate limit or server busy before switching keys
+      const errMsg = error?.message || String(error);
+      const isRateLimit = errMsg.includes('429') || errMsg.includes('Quota exceeded');
+      const isServiceUnavailable = errMsg.includes('503') || errMsg.includes('temporary');
+      
+      if ((isRateLimit || isServiceUnavailable) && attempt < attemptsCount - 1) {
+        console.log(`[Note Generation] Rate limited or server busy. Waiting 1.5s then trying next key...`);
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+    }
   }
+
+  if (!formatted && lastError) {
+    const errorMsg = lastError?.message || String(lastError);
+    if (errorMsg.includes('suspended') || errorMsg.includes('PERMISSION_DENIED') || errorMsg.includes('403')) {
+      return res.status(403).json({
+        error: `Gemini formatting failed check. All API keys tried (${clients.length} loaded). Final error: API Key is suspended or permissions were denied. Please update your key settings.`
+      });
+    }
+    return res.status(500).json({ 
+      error: `Failed to generate note after trying all available Gemini keys. Last error: ${errorMsg}` 
+    });
+  }
+
+  return res.status(200).json({ formattedNote: formatted });
 }

@@ -27,6 +27,7 @@ async function startServer() {
   app.post("/api/webhook", (req, res) => webhookHandler(req, res));
   app.get("/api/setup", (req, res) => setupHandler(req, res));
   app.post("/api/note/format", (req, res) => formatNoteHandler(req, res));
+  app.post("/api/formatNote", (req, res) => formatNoteHandler(req, res));
   
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
