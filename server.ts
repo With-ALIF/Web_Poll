@@ -4,6 +4,9 @@ import path from "path";
 import webhookHandler from "./api/webhook.ts";
 import setupHandler from "./api/setup.ts";
 import formatNoteHandler from "./api/formatNote.ts";
+import quizHandler from "./api/quiz.ts";
+import photocardHandler from "./api/photocard.ts";
+import examPaperHandler from "./api/examPaper.ts";
 
 async function startServer() {
   const app = express();
@@ -22,12 +25,16 @@ async function startServer() {
     next();
   });
 
-  app.use("/api", express.json());
+  app.use("/api", express.json({ limit: '10mb' })); // support larger image base64 uploads
   
   app.post("/api/webhook", (req, res) => webhookHandler(req, res));
   app.get("/api/setup", (req, res) => setupHandler(req, res));
   app.post("/api/note/format", (req, res) => formatNoteHandler(req, res));
   app.post("/api/formatNote", (req, res) => formatNoteHandler(req, res));
+  app.post("/api/quiz/generate", (req, res) => quizHandler(req, res));
+  app.post("/api/quiz/generateFromImage", (req, res) => quizHandler(req, res));
+  app.post("/api/photocard/generateOptions", (req, res) => photocardHandler(req, res));
+  app.post("/api/exam-paper/generate", (req, res) => examPaperHandler(req, res));
   
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

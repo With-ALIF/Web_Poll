@@ -112,36 +112,38 @@ Formatting & Style Rules:
   let lastError: any = null;
   let formatted = "";
   
-  const attemptsCount = Math.max(1, clients.length);
-  const startIndex = currentClientIndex;
+  const retriesCount = 5;
+  const modelsToTry = ["gemini-3.5-flash", "gemini-flash-latest", "gemini-3.1-flash-lite"];
+  let modelAttempt = 0;
 
-  for (let attempt = 0; attempt < attemptsCount; attempt++) {
-    const activeIndex = (startIndex + attempt) % clients.length;
+  for (let attempt = 0; attempt <= retriesCount; attempt++) {
+    const activeIndex = (currentClientIndex + attempt) % Math.max(1, clients.length);
     const aiInstance = clients[activeIndex];
+    const currentModel = modelsToTry[modelAttempt % modelsToTry.length];
 
     try {
-      console.log(`[Note Generation] Attempting generation with API key index ${activeIndex + 1}/${clients.length}`);
+      console.log(`[Note Generation] Attempt ${attempt}: Using key index ${activeIndex + 1} and model ${currentModel}`);
       const response = await aiInstance.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: currentModel,
         contents: prompt,
       });
 
       formatted = response.text || "";
       // Update global index to the next one to distribute load gracefully next time
-      currentClientIndex = (activeIndex + 1) % clients.length;
+      currentClientIndex = (activeIndex + 1) % Math.max(1, clients.length);
       console.log(`[Note Generation] Successfully generated formatted note using key index ${activeIndex + 1}`);
       break;
     } catch (error: any) {
       lastError = error;
-      console.error(`[Note Generation] Error on key index ${activeIndex + 1}/${clients.length}:`, error.message || error);
+      console.error(`[Note Generation] Attempt ${attempt} with model ${currentModel} on key index ${activeIndex + 1} failed:`, error.message || error);
       
-      // Delay slightly for rate limit or server busy before switching keys
       const errMsg = error?.message || String(error);
       const isRateLimit = errMsg.includes('429') || errMsg.includes('Quota exceeded');
-      const isServiceUnavailable = errMsg.includes('503') || errMsg.includes('temporary');
+      const isServiceUnavailable = errMsg.includes('503') || errMsg.includes('temporary') || errMsg.includes('high demand') || errMsg.includes('Service Unavailable');
       
-      if ((isRateLimit || isServiceUnavailable) && attempt < attemptsCount - 1) {
-        console.log(`[Note Generation] Rate limited or server busy. Waiting 1.5s then trying next key...`);
+      if (attempt < retriesCount) {
+        modelAttempt++;
+        console.log(`[Note Generation] Rate limited or server busy. Waiting 1.5s then trying next key/model...`);
         await new Promise(resolve => setTimeout(resolve, 1500));
       }
     }
