@@ -4,6 +4,18 @@ import { GoogleGenAI } from "@google/genai";
 let aiClients: GoogleGenAI[] = [];
 let currentClientIndex = 0;
 
+// Fallback models that can auto-heal on quota/temporary errors (429/503)
+let activeModels = ["gemini-3.5-flash", "gemini-3.1-flash-lite"];
+
+function demoteModel(modelName: string) {
+  const index = activeModels.indexOf(modelName);
+  if (index !== -1 && activeModels.length > 1) {
+    activeModels.splice(index, 1);
+    activeModels.push(modelName);
+    console.warn(`[Format Note API] Demoted model ${modelName} due to errors. New order: ${activeModels.join(', ')}`);
+  }
+}
+
 function getAIClients(): GoogleGenAI[] {
   if (aiClients.length === 0) {
     const keysSet = new Set<string>();
@@ -113,16 +125,15 @@ Formatting & Style Rules:
   let formatted = "";
   
   const retriesCount = 5;
-  const modelsToTry = ["gemini-3.5-flash", "gemini-flash-latest", "gemini-3.1-flash-lite"];
   let modelAttempt = 0;
 
   for (let attempt = 0; attempt <= retriesCount; attempt++) {
     const activeIndex = (currentClientIndex + attempt) % Math.max(1, clients.length);
     const aiInstance = clients[activeIndex];
-    const currentModel = modelsToTry[modelAttempt % modelsToTry.length];
+    const currentModel = activeModels[modelAttempt % activeModels.length];
 
     try {
-      console.log(`[Note Generation] Attempt ${attempt}: Using key index ${activeIndex + 1} and model ${currentModel}`);
+      console.log(`[Note Generation] Temporary Attempt ${attempt}: Using key index ${activeIndex + 1} and model ${currentModel}`);
       const response = await aiInstance.models.generateContent({
         model: currentModel,
         contents: prompt,
@@ -135,16 +146,21 @@ Formatting & Style Rules:
       break;
     } catch (error: any) {
       lastError = error;
-      console.error(`[Note Generation] Attempt ${attempt} with model ${currentModel} on key index ${activeIndex + 1} failed:`, error.message || error);
-      
       const errMsg = error?.message || String(error);
       const isRateLimit = errMsg.includes('429') || errMsg.includes('Quota exceeded');
       const isServiceUnavailable = errMsg.includes('503') || errMsg.includes('temporary') || errMsg.includes('high demand') || errMsg.includes('Service Unavailable');
       
+      if (isRateLimit || isServiceUnavailable) {
+        demoteModel(currentModel);
+      }
+
       if (attempt < retriesCount) {
+        console.warn(`[Note Generation] Attempt ${attempt} with model ${currentModel} on key index ${activeIndex + 1} failed (will retry):`, error.message || error);
         modelAttempt++;
         console.log(`[Note Generation] Rate limited or server busy. Waiting 1.5s then trying next key/model...`);
         await new Promise(resolve => setTimeout(resolve, 1500));
+      } else {
+        console.error(`[Note Generation] All attempts failed. Final error with model ${currentModel} on key index ${activeIndex + 1}:`, error.message || error);
       }
     }
   }

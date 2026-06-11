@@ -4,6 +4,18 @@ import { GoogleGenAI, Type } from "@google/genai";
 let aiClients: GoogleGenAI[] = [];
 let currentClientIndex = 0;
 
+// Fallback models that can auto-heal on quota/temporary errors (429/503)
+let activeModels = ["gemini-3.5-flash", "gemini-3.1-flash-lite"];
+
+function demoteModel(modelName: string) {
+  const index = activeModels.indexOf(modelName);
+  if (index !== -1 && activeModels.length > 1) {
+    activeModels.splice(index, 1);
+    activeModels.push(modelName);
+    console.warn(`[Photocard API] Demoted model ${modelName} due to failure. New order: ${activeModels.join(', ')}`);
+  }
+}
+
 function getAIClients(): GoogleGenAI[] {
   if (aiClients.length === 0) {
     const keysSet = new Set<string>();
@@ -80,14 +92,13 @@ export default async function handler(req: any, res: any) {
   }
 
   const retries = 5;
-  const modelsToTry = ["gemini-3.5-flash", "gemini-flash-latest", "gemini-3.1-flash-lite"];
   let modelAttempt = 0;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const currentModel = modelsToTry[modelAttempt % modelsToTry.length];
+    const currentModel = activeModels[modelAttempt % activeModels.length];
     try {
       const aiClient = getAI();
-      console.log(`[Photocard API] Attempt ${attempt}: Using model ${currentModel}`);
+      console.log(`[Photocard API] Temporary Attempt ${attempt}: Using model ${currentModel}`);
       
       const response = await aiClient.models.generateContent({
         model: currentModel,
@@ -122,17 +133,23 @@ Question: ${question}`,
 
       return res.status(200).json(JSON.parse(text));
     } catch (error: any) {
-      console.error(`[Photocard API] Attempt ${attempt} failed with model ${currentModel}:`, error.message || error);
       const errorMsg = error?.message || String(error);
       const isServiceUnavailable = errorMsg.includes('503') || errorMsg.includes('UNAVAILABLE') || errorMsg.includes('temporary') || errorMsg.includes('high demand') || errorMsg.includes('Service Unavailable');
       const isRateLimit = errorMsg.includes('429') || errorMsg.includes('Quota exceeded');
 
+      if (isRateLimit || isServiceUnavailable) {
+        demoteModel(currentModel);
+      }
+
       if (attempt < retries) {
+        console.warn(`[Photocard API] Attempt ${attempt} failed with model ${currentModel} (will retry):`, error.message || error);
         rotateKey();
         modelAttempt++;
         await new Promise(resolve => setTimeout(resolve, 1500));
         continue;
       }
+
+      console.error(`[Photocard API] All attempts failed. Final error with model ${currentModel}:`, error.message || error);
 
       if (isServiceUnavailable) {
         return res.status(503).json({ error: "Gemini সার্ভারে বর্তমানে অত্যধিক চাপ রয়েছে (503 High Demand)। অনুগ্রহ করে কয়েক সেকেন্ড পর আবার চেষ্টা করুন।" });

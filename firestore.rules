@@ -12,10 +12,13 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() && 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-         request.auth.token.email == "alifweb@gmail.com" ||
-         request.auth.token.email == "alifbrur16@gmail.com");
+      return isAuthenticated() && (
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'user') == 'admin') ||
+        request.auth.token.email == "alifweb@gmail.com" ||
+        request.auth.token.email == "alifbrur16@gmail.com" ||
+        request.auth.token.email == "alif21@gmail.com"
+      );
     }
 
     function hasRequiredFields(fields) {
@@ -34,7 +37,20 @@ service cloud.firestore {
 
     // Quiz validation
     function isValidQuiz(data) {
-      return data.userId is string && (data.userId == request.auth.uid || isAdmin());
+      return isAuthenticated() && 
+             (data.get('userId', request.auth.uid) == request.auth.uid || isAdmin());
+    }
+
+    function isResourceOwner(resourceDoc) {
+      return isAuthenticated() && (
+        resourceDoc == null ||
+        resourceDoc.data.get('userId', request.auth.uid) == request.auth.uid ||
+        resourceDoc.data.get('userId', 'anonymous') == 'anonymous' ||
+        resourceDoc.data.get('userId', 'anonymous') == '' ||
+        resourceDoc.data.get('userId', 'anonymous') == 'undefined' ||
+        resourceDoc.data.get('userId', 'anonymous') == 'null' ||
+        isAdmin()
+      );
     }
 
     // User profiles
@@ -48,26 +64,26 @@ service cloud.firestore {
 
     // Quiz questions
     match /quizzes/{quizId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isResourceOwner(resource) || isAdmin();
       allow create: if isAuthenticated() && isValidQuiz(request.resource.data);
-      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isResourceOwner(resource) || isAdmin();
+      allow delete: if isResourceOwner(resource) || isAdmin();
     }
 
     // Drafts
     match /drafts/{draftId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isResourceOwner(resource) || isAdmin();
       allow create: if isAuthenticated() && isValidQuiz(request.resource.data);
-      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isResourceOwner(resource) || isAdmin();
+      allow delete: if isResourceOwner(resource) || isAdmin();
     }
 
     // Smart Notes
     match /notes/{noteId} {
-      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated() && (request.resource.data.userId == request.auth.uid || isAdmin());
-      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow read: if isResourceOwner(resource) || isAdmin();
+      allow create: if isResourceOwner(request.resource) || isAdmin();
+      allow update: if isResourceOwner(resource) || isAdmin();
+      allow delete: if isResourceOwner(resource) || isAdmin();
     }
 
     // User settings

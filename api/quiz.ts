@@ -4,6 +4,19 @@ import { GoogleGenAI, Type } from "@google/genai";
 let aiClients: GoogleGenAI[] = [];
 let currentClientIndex = 0;
 
+// Module-level fallback model lists that auto-heal if a model gets exhausted (429/503)
+let activeTextModels = ["gemini-3.5-flash", "gemini-3.1-flash-lite"];
+let activeImageModels = ["gemini-3.5-flash", "gemini-3.1-flash-lite"];
+
+function demoteModel(modelList: string[], modelName: string, serviceName: string) {
+  const index = modelList.indexOf(modelName);
+  if (index !== -1 && modelList.length > 1) {
+    modelList.splice(index, 1);
+    modelList.push(modelName);
+    console.warn(`[${serviceName}] Demoted model ${modelName} due to temporary failure. New order: ${modelList.join(', ')}`);
+  }
+}
+
 function getAIClients(): GoogleGenAI[] {
   if (aiClients.length === 0) {
     const keysSet = new Set<string>();
@@ -86,11 +99,10 @@ Also, the remaining main question statement MUST be kept EXACTLY 100% identical 
 If the input contains a board/university name, exam year, multiple names/years, exam metadata, or creator/personal names/credits/tags (e.g., '[দিনাজপুর বোর্ড ২০২৩]', 'Ac.QBদিনাজপুর বোর্ড2023Scienceখ', 'Ad.QBDU2023Unit-A', 'B-2.1Hasan', 'Hasan', '[ঢা. বো. ২৩; রা. বো. ২২]', '[DU 22-23]', or similar patterns either in brackets, as raw text, or on separate lines), you MUST STRIP THESE OUT ENTIRELY from the question. Under no circumstances should you include or append any board, university, exam year, board abbreviation, creator name, personal credit, or exam codes/subjects/units/tags (like 'Science', 'Arts', 'Commerce', 'খ', 'ক', 'Unit-A', 'Ad.QB', 'Ac.QB', 'B-2.1Hasan', 'Hasan', 'B-2.1') in the generated question text. Keep the question clean and focused only on the question statement itself.
 However, you MUST keep the core question statement EXACTLY 100% identical word-for-word to the input text without any translation, rephrasing, or modification!`;
 
-  const modelsToTry = ["gemini-3.5-flash", "gemini-flash-latest", "gemini-3.1-flash-lite"];
   let modelAttempt = 0;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const currentModel = modelsToTry[modelAttempt % modelsToTry.length];
+    const currentModel = activeTextModels[modelAttempt % activeTextModels.length];
     try {
       const aiClient = getAI();
       console.log(`[Quiz API] Text Attempt ${attempt}: Using model ${currentModel}`);
@@ -162,14 +174,18 @@ ${text}`,
 
       return JSON.parse(jsonStr);
     } catch (error: any) {
-      console.error(`[Quiz API] Attempt ${attempt} with model ${currentModel} failed:`, error.message || error);
       const errorMsg = error?.message || String(error);
       const isRateLimit = errorMsg.includes('429') || errorMsg.includes('Quota exceeded');
       const isForbidden = errorMsg.includes('403') || errorMsg.includes('leaked') || errorMsg.includes('PERMISSION_DENIED');
       const isJsonError = errorMsg.includes('json') || errorMsg.includes('Unexpected end of JSON');
       const isServiceUnavailable = errorMsg.includes('503') || errorMsg.includes('UNAVAILABLE') || errorMsg.includes('temporary') || errorMsg.includes('high demand') || errorMsg.includes('Service Unavailable');
       
+      if (isRateLimit || isServiceUnavailable) {
+        demoteModel(activeTextModels, currentModel, "Quiz API Text");
+      }
+
       if (attempt < retries) {
+        console.warn(`[Quiz API] Attempt ${attempt} with model ${currentModel} failed (will retry):`, error.message || error);
         rotateKey();
         modelAttempt++;
         const waitTime = Math.pow(2, attempt % 3) * 1500;
@@ -177,6 +193,8 @@ ${text}`,
         continue;
       }
       
+      console.error(`[Quiz API] Text generation failed after all attempts. Final error on ${currentModel}:`, error.message || error);
+
       if (isServiceUnavailable) {
         throw new Error("Gemini সার্ভারে বর্তমানে অত্যধিক চাপ রয়েছে (503 High Demand)। অনুগ্রহ করে কয়েক সেকেন্ড পর আবার চেষ্টা করুন অথবা একটি নতুন API Key যুক্ত করুন।");
       }
@@ -189,11 +207,10 @@ ${text}`,
 }
 
 export async function generateQuizFromImageLogic(imageBase64: string, mimeType: string, count: number = 5, retries: number = 5): Promise<any[]> {
-  const modelsToTry = ["gemini-3.5-flash", "gemini-flash-latest", "gemini-3.1-flash-lite"];
   let modelAttempt = 0;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const currentModel = modelsToTry[modelAttempt % modelsToTry.length];
+    const currentModel = activeImageModels[modelAttempt % activeImageModels.length];
     try {
       const aiClient = getAI();
       console.log(`[Quiz API] Image Attempt ${attempt}: Using model ${currentModel}`);
@@ -271,14 +288,18 @@ You MUST output a 0-indexed correctOptionIndex (e.g., 0, 1, 2, 3).`
 
       return JSON.parse(jsonStr);
     } catch (error: any) {
-      console.error(`[Quiz API] Image Attempt ${attempt} with model ${currentModel} failed:`, error.message || error);
       const errorMsg = error?.message || String(error);
       const isRateLimit = errorMsg.includes('429') || errorMsg.includes('Quota exceeded');
       const isForbidden = errorMsg.includes('403') || errorMsg.includes('leaked') || errorMsg.includes('PERMISSION_DENIED');
       const isJsonError = errorMsg.includes('json') || errorMsg.includes('Unexpected end of JSON');
       const isServiceUnavailable = errorMsg.includes('503') || errorMsg.includes('UNAVAILABLE') || errorMsg.includes('temporary') || errorMsg.includes('high demand') || errorMsg.includes('Service Unavailable');
       
+      if (isRateLimit || isServiceUnavailable) {
+        demoteModel(activeImageModels, currentModel, "Quiz API Image");
+      }
+
       if (attempt < retries) {
+        console.warn(`[Quiz API] Image Attempt ${attempt} with model ${currentModel} failed (will retry):`, error.message || error);
         rotateKey();
         modelAttempt++;
         const waitTime = Math.pow(2, attempt % 3) * 1500;
@@ -286,6 +307,8 @@ You MUST output a 0-indexed correctOptionIndex (e.g., 0, 1, 2, 3).`
         continue;
       }
       
+      console.error(`[Quiz API] Image generation failed after all attempts. Final error on ${currentModel}:`, error.message || error);
+
       if (isServiceUnavailable) {
         throw new Error("Gemini সার্ভারে বর্তমানে অত্যধিক চাপ রয়েছে (503 High Demand)। অনুগ্রহ করে কয়েক সেকেন্ড পর আবার চেষ্টা করুন অথবা একটি নতুন API Key যুক্ত করুন।");
       }
@@ -303,7 +326,7 @@ export default async function handler(req: any, res: any) {
   }
 
   // Parse path or action to distinguish requests
-  const path = req.path || '';
+  const path = req.path || req.originalUrl || req.url || '';
   const isImageRequest = path.includes('generateFromImage');
 
   try {

@@ -6,6 +6,18 @@ import { getResponseSchema } from "../src/features/exam-paper/services/schemas";
 let aiClients: GoogleGenAI[] = [];
 let currentClientIndex = 0;
 
+// Dynamic model fallback priority tracker
+let activeModels = ["gemini-3.5-flash", "gemini-3.1-flash-lite"];
+
+function demoteModel(modelName: string) {
+  const index = activeModels.indexOf(modelName);
+  if (index !== -1 && activeModels.length > 1) {
+    activeModels.splice(index, 1);
+    activeModels.push(modelName);
+    console.warn(`[Exam Paper API] Demoted model ${modelName} due to errors. New order: ${activeModels.join(', ')}`);
+  }
+}
+
 function getAIClients(): GoogleGenAI[] {
   if (aiClients.length === 0) {
     const keysSet = new Set<string>();
@@ -87,14 +99,13 @@ export default async function handler(req: any, res: any) {
   const prompt = getMCQPrompt(content, settings);
   const schema = getResponseSchema();
   const retries = 5;
-  const modelsToTry = ["gemini-3.5-flash", "gemini-flash-latest", "gemini-3.1-flash-lite"];
   let modelAttempt = 0;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
-    const currentModel = modelsToTry[modelAttempt % modelsToTry.length];
+    const currentModel = activeModels[modelAttempt % activeModels.length];
     try {
       const aiClient = getAI();
-      console.log(`[Exam Paper API] Attempt ${attempt}: Using model ${currentModel}`);
+      console.log(`[Exam Paper API] Temporary Attempt ${attempt}: Using model ${currentModel}`);
       const response = await aiClient.models.generateContent({
         model: currentModel,
         contents: prompt,
@@ -113,17 +124,24 @@ export default async function handler(req: any, res: any) {
 
       return res.status(200).json(JSON.parse(response.text.trim()));
     } catch (error: any) {
-      console.error(`[Exam Paper API] Attempt ${attempt} failed with model ${currentModel}:`, error.message || error);
-      const msg = error?.message || '';
-      
+      const msg = error?.message || String(error);
+      const isRateLimit = msg.includes('429') || msg.includes('Quota exceeded');
+      const isServiceUnavailable = msg.includes('503') || msg.includes('UNAVAILABLE') || msg.includes('temporary') || msg.includes('high demand') || msg.includes('Service Unavailable');
+
+      if (isRateLimit || isServiceUnavailable) {
+        demoteModel(currentModel);
+      }
+
       if (attempt < retries) {
+        console.warn(`[Exam Paper API] Attempt ${attempt} failed with model ${currentModel} (will retry):`, error.message || error);
         rotateKey();
         modelAttempt++;
         await new Promise(resolve => setTimeout(resolve, 1500));
         continue;
       }
 
-      const isServiceUnavailable = msg.includes('503') || msg.includes('UNAVAILABLE') || msg.includes('temporary') || msg.includes('high demand') || msg.includes('Service Unavailable');
+      console.error(`[Exam Paper API] All attempts failed. Final error with model ${currentModel}:`, error.message || error);
+
       if (isServiceUnavailable) {
         return res.status(503).json({ error: "Gemini সার্ভারে বর্তমানে অত্যধিক চাপ রয়েছে (503 High Demand)। অনুগ্রহ করে কয়েক সেকেন্ড পর আবার চেষ্টা করুন অথবা একটি নতুন API Key যুক্ত করুন।" });
       }
