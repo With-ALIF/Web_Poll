@@ -11,20 +11,38 @@ interface UserCardProps {
   setActiveMenuId: (id: string | null) => void;
   onManageAccess: (user: AdminUser) => void;
   onDelete: (userId: string) => void;
+  isSelected: boolean;
+  onToggleSelect: () => void;
 }
 
 export const UserCard: React.FC<UserCardProps> = ({ 
-  user, activeMenuId, setActiveMenuId, onManageAccess, onDelete 
+  user, activeMenuId, setActiveMenuId, onManageAccess, onDelete,
+  isSelected, onToggleSelect
 }) => {
   return (
     <motion.div 
       layout initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-      className="bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col relative"
+      className={`bg-white rounded-2xl border transition-all overflow-hidden flex flex-col relative ${
+        isSelected 
+          ? 'border-indigo-500 ring-2 ring-indigo-500/20 shadow-md' 
+          : 'border-slate-200 shadow-sm hover:shadow-md'
+      }`}
     >
       <div className="p-5 flex-1">
         <div className="flex items-start justify-between mb-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border-2 border-white shadow-sm">
+          <div className="flex items-center gap-3.5">
+            {/* Custom Checkbox */}
+            <div className="flex items-center h-full">
+              <input
+                type="checkbox"
+                id={`user-select-${user.id}`}
+                checked={isSelected}
+                onChange={onToggleSelect}
+                className="w-4 h-4 text-indigo-600 bg-white border-slate-300 rounded focus:ring-indigo-500 focus:ring-2 cursor-pointer transition-all focus:outline-none"
+              />
+            </div>
+            
+            <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center overflow-hidden border-2 border-white shadow-sm flex-shrink-0">
               {user.photoURL ? <img src={user.photoURL} alt={user.displayName} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <UserIcon className="w-7 h-7 text-slate-400" />}
             </div>
             <div>
