@@ -63,6 +63,8 @@ export const useFeatureRoutes = ({ appState, handleDraftSelected }: FeatureRoute
                     stats={quiz.stats}
                     settings={settings.settings}
                     onChannelChange={(id) => settings.saveSettings({ ...settings.settings, activeChannelId: id })}
+                    canEditSuffix={settings.canEditSuffix}
+                    globalDefaultSuffix={settings.globalDefaultSuffix}
                     sendError={telegram.sendError}
                     onClearError={() => telegram.setSendError(null)}
                     isBulkSending={telegram.isBulkSending}
@@ -104,6 +106,8 @@ export const useFeatureRoutes = ({ appState, handleDraftSelected }: FeatureRoute
                 stats={quiz.stats}
                 settings={settings.settings}
                 onChannelChange={(id) => settings.saveSettings({ ...settings.settings, activeChannelId: id })}
+                canEditSuffix={settings.canEditSuffix}
+                globalDefaultSuffix={settings.globalDefaultSuffix}
                 sendError={telegram.sendError}
                 onClearError={() => telegram.setSendError(null)}
                 isBulkSending={telegram.isBulkSending}

@@ -32,18 +32,18 @@ export function useDraftsSource() {
     const success = await sendFn(draft);
     if (success) {
       await saveQuiz(user.uid, { ...draft, status: 'sent' });
-      await deleteDraft(draft.id);
+      await deleteDraft(draft.id, user.uid);
     }
   }, [user?.uid]);
 
   const handleDeleteDraft = useCallback(async (id: string) => {
     if (!id) return;
     try {
-      await deleteDraft(id);
+      await deleteDraft(id, user?.uid);
     } catch (error) {
       console.error('handleDeleteDraft error:', error);
     }
-  }, []);
+  }, [user?.uid]);
 
   return useMemo(() => ({ 
     drafts, 

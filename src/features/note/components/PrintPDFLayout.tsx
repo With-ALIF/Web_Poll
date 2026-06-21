@@ -13,7 +13,11 @@ interface PrintPDFLayoutProps {
 
 export function PrintPDFLayout({ activeNote, userDisplayName, printRef }: PrintPDFLayoutProps) {
   return (
-    <div className="fixed top-0 left-0 opacity-0 pointer-events-none z-[-100]" aria-hidden="true">
+    <div 
+      className="fixed top-0 pointer-events-none z-[-9999]" 
+      style={{ left: '-9999px', opacity: 1 }} 
+      aria-hidden="true"
+    >
       <div 
         ref={printRef} 
         className="p-12 bg-white text-slate-900 w-[794px] flex flex-col justify-between font-sans shadow-none rounded-none"

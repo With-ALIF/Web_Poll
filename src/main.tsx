@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { AppProvider } from './context/AppContext';
 import { DraftProvider } from './context/DraftContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import App from './app/App';
 import './index.css';
 import { registerSW } from 'virtual:pwa-register';
@@ -12,14 +13,16 @@ registerSW({ immediate: true });
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <AppProvider>
-          <DraftProvider>
-            <App />
-          </DraftProvider>
-        </AppProvider>
-      </AuthProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AuthProvider>
+          <AppProvider>
+            <DraftProvider>
+              <App />
+            </DraftProvider>
+          </AppProvider>
+        </AuthProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   </StrictMode>,
 );

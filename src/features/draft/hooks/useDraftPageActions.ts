@@ -5,11 +5,15 @@ export function useDraftPageActions(drafts: QuizQuestion[], deleteDraft: any, se
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectedDraftForDetails, setSelectedDraftForDetails] = useState<QuizQuestion | null>(null);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [isBulkDelete, setIsBulkDelete] = useState(false);
+  const [draftToDelete, setDraftToDelete] = useState<QuizQuestion | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleSend = async (draft: QuizQuestion) => {
     await sendDraftToTelegram(draft, async (q: QuizQuestion) => {
       try {
-        await telegram.handleSendToTelegram(q.id);
+        await telegram.handleSendToTelegram(q.id, q);
         return true;
       } catch (e) {
         return false;
@@ -29,12 +33,35 @@ export function useDraftPageActions(drafts: QuizQuestion[], deleteDraft: any, se
     else setSelectedIds(new Set(drafts.map(d => d.id)));
   };
 
-  const handleBulkDelete = async () => {
-    if (window.confirm(`Are you sure you want to delete ${selectedIds.size} drafts?`)) {
-      for (const id of selectedIds) {
-        try { await deleteDraft(id); } catch (error) { console.error(error); }
+  const handleBulkDelete = () => {
+    setIsBulkDelete(true);
+    setDraftToDelete(null);
+    setDeleteModalOpen(true);
+  };
+
+  const handleSingleDelete = (id: string) => {
+    const draft = drafts.find(d => d.id === id);
+    if (!draft) return;
+    setIsBulkDelete(false);
+    setDraftToDelete(draft);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    setIsDeleting(true);
+    try {
+      if (isBulkDelete) {
+        for (const id of selectedIds) {
+          try { await deleteDraft(id); } catch (error) { console.error(error); }
+        }
+        setSelectedIds(new Set());
+      } else if (draftToDelete) {
+        await deleteDraft(draftToDelete.id);
       }
-      setSelectedIds(new Set());
+    } finally {
+      setIsDeleting(false);
+      setDeleteModalOpen(false);
+      setDraftToDelete(null);
     }
   };
 
@@ -53,6 +80,9 @@ export function useDraftPageActions(drafts: QuizQuestion[], deleteDraft: any, se
   return {
     selectedIds, selectedDraftForDetails, setSelectedDraftForDetails,
     isExportModalOpen, setIsExportModalOpen,
-    handleSend, toggleSelect, toggleSelectAll, handleBulkDelete, handleBulkSend
+    deleteModalOpen, setDeleteModalOpen, 
+    isBulkDelete, draftToDelete, isDeleting,
+    handleSend, toggleSelect, toggleSelectAll, 
+    handleBulkDelete, handleSingleDelete, confirmDelete, handleBulkSend
   };
 }

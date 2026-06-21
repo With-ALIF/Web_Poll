@@ -18,15 +18,12 @@ export const QuestionEditor: React.FC<Props> = ({ editQuestion, setEditQuestion,
     <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
       <QuestionFields editQuestion={editQuestion} setEditQuestion={setEditQuestion} />
       <QuestionMetaFields editQuestion={editQuestion} setEditQuestion={setEditQuestion} />
-      <div className="flex items-center gap-2 pt-2">
-        <button onClick={onUpdate} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all">
-          <Check size={16} /> Update
+      <div className="flex items-center gap-3 pt-4 border-t border-slate-100">
+        <button onClick={onUpdate} className="flex-1 bg-[#2C4B9B] hover:bg-[#1e3675] text-white font-bold py-3 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/10 active:scale-95">
+          <Check size={18} /> Update Question
         </button>
-        <button onClick={onDelete} className="w-12 h-10 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-xl flex items-center justify-center">
-          <Trash2 size={18} />
-        </button>
-        <button onClick={onCancel} className="w-12 h-10 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-xl flex items-center justify-center">
-          <CloseIcon size={18} />
+        <button onClick={onDelete} className="w-14 h-12 bg-red-50 hover:bg-red-100 text-red-600 rounded-2xl flex items-center justify-center transition-all active:scale-95 border border-red-100" title="Delete Question">
+          <Trash2 size={20} />
         </button>
       </div>
     </div>

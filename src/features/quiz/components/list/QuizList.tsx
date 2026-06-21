@@ -38,6 +38,8 @@ export default function QuizList({
   isStopping,
   handleStopSend,
   bulkSendStatus,
+  canEditSuffix,
+  globalDefaultSuffix,
   className = ""
 }: QuizListProps) {
   const { selectedTopic, setSelectedTopic, filteredQuestions } = useQuizFilter(questions);
@@ -96,6 +98,8 @@ export default function QuizList({
           handleSendAll={handleSendAll}
           selectedTopic={selectedTopic}
           onTopicChange={setSelectedTopic}
+          canEditSuffix={canEditSuffix}
+          globalDefaultSuffix={globalDefaultSuffix}
         />
       </QuizListHeader>
 

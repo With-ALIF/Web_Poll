@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Lock, Trash2, MoreVertical, FileDown } from 'lucide-react';
+import { Lock, Trash2, MoreVertical, KeyRound } from 'lucide-react';
 
 interface UserMenuProps {
   userId: string;
@@ -8,10 +8,11 @@ interface UserMenuProps {
   setActiveMenuId: (id: string | null) => void;
   onManageAccess: () => void;
   onDelete: () => void;
+  onResetPassword: () => void;
 }
 
 export const UserMenu: React.FC<UserMenuProps> = ({ 
-  userId, activeMenuId, setActiveMenuId, onManageAccess, onDelete
+  userId, activeMenuId, setActiveMenuId, onManageAccess, onDelete, onResetPassword
 }) => {
   const isOpen = activeMenuId === userId;
 
@@ -40,6 +41,13 @@ export const UserMenu: React.FC<UserMenuProps> = ({
               >
                 <Lock className="w-4 h-4 text-amber-500" />
                 Manage Access
+              </button>
+              <button 
+                onClick={() => { onResetPassword(); setActiveMenuId(null); }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                <KeyRound className="w-4 h-4 text-indigo-500" />
+                Reset Password
               </button>
               <div className="h-px bg-slate-100 my-1" />
               <button 

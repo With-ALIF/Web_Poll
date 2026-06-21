@@ -11,9 +11,10 @@ interface FormattingSettingsProps {
   settings: TelegramSettings;
   setSettings: (settings: TelegramSettings) => void;
   canEditSuffix?: boolean;
+  globalDefaultSuffix?: string;
 }
 
-export default function FormattingSettings({ settings, setSettings, canEditSuffix = true }: FormattingSettingsProps) {
+export default function FormattingSettings({ settings, setSettings, canEditSuffix = true, globalDefaultSuffix }: FormattingSettingsProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   
@@ -97,6 +98,7 @@ export default function FormattingSettings({ settings, setSettings, canEditSuffi
         activeSuffixId={activeSuffixId}
         isGlobalMode={selectedChannelIdForFormatting === 'global'}
         canEditSuffix={canEditSuffix}
+        globalDefaultSuffix={globalDefaultSuffix}
       />
     </div>
   );

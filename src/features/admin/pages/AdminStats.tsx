@@ -1,11 +1,9 @@
 import React, { useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Users, Layout, Shield, FileQuestion } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { useAdminUsers } from '../hooks/useAdminUsers';
 import { AVAILABLE_PAGES } from '../constants';
-import { doc, setDoc } from 'firebase/firestore';
-import { db } from '../../../backend/firebase';
+import { supabase } from '../../../lib/supabase';
 
 export default function AdminStats() {
   const { loading, regularUsersCount, users } = useAdminUsers();
@@ -19,18 +17,24 @@ export default function AdminStats() {
     if (!loading && regularUsersCount > 0) {
       const syncStats = async () => {
         try {
-          await setDoc(doc(db, 'system', 'stats'), {
-            userCount: regularUsersCount,
-            totalPollsGenerated,
-            totalPollsSent
-          }, { merge: true });
+          await supabase
+            .from('system_stats')
+            .upsert({
+              key: 'stats',
+              value: {
+                userCount: regularUsersCount,
+                totalPollsGenerated,
+                totalPollsSent
+              },
+              updated_at: new Date().toISOString()
+            });
         } catch (error) {
           console.error("Failed to sync stats", error);
         }
       };
       syncStats();
     }
-  }, [loading, regularUsersCount, totalPollsGenerated]);
+  }, [loading, regularUsersCount, totalPollsGenerated, totalPollsSent]);
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-[60vh]">

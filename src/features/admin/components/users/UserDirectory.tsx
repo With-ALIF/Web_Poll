@@ -9,12 +9,16 @@ interface UserDirectoryProps {
   setActiveMenuId: (id: string | null) => void;
   onManageAccess: (user: AdminUser) => void;
   onDelete: (userId: string) => void;
+  onResetPassword: (user: AdminUser) => void;
+  selectedUserIds: string[];
+  onToggleSelectUser: (id: string) => void;
 }
 
 export const UserDirectory: React.FC<UserDirectoryProps> = ({ 
-  users, activeMenuId, setActiveMenuId, onManageAccess, onDelete 
+  users, activeMenuId, setActiveMenuId, onManageAccess, onDelete, onResetPassword,
+  selectedUserIds, onToggleSelectUser
 }) => {
-  if (users.length === 0) {
+  if (!users || users.length === 0) {
     return (
       <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-300">
         <UsersIcon className="w-12 h-12 text-slate-300 mx-auto mb-4" />
@@ -33,6 +37,9 @@ export const UserDirectory: React.FC<UserDirectoryProps> = ({
           setActiveMenuId={setActiveMenuId} 
           onManageAccess={onManageAccess} 
           onDelete={onDelete} 
+          onResetPassword={onResetPassword}
+          isSelected={selectedUserIds.includes(user.id)}
+          onToggleSelect={() => onToggleSelectUser(user.id)}
         />
       ))}
     </div>

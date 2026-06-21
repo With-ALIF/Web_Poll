@@ -1,10 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
-import { User, onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth, db } from '../backend/firebase';
+import { supabase } from '../lib/supabase';
+import { User } from '@supabase/supabase-js';
 import { createUserProfile, signInWithEmail, signUpWithEmail, resetPassword } from '../features/auth/services/authService';
-import { fetchAppConfig } from '../features/admin/services/adminSettingsService';
-import { doc, onSnapshot } from 'firebase/firestore';
 import { ADMIN_EMAILS } from '../features/auth/constants';
+import { getUserPermissionsConfig } from '../features/admin/services/permissionHelper';
 
 interface AuthContextType {
   user: any | null;
@@ -12,8 +11,8 @@ interface AuthContextType {
   appConfig: any | null;
   isAdmin: boolean;
   loading: boolean;
-  loginWithEmail: (email: string, password: string) => Promise<User>;
-  signUpWithEmailAuth: (email: string, password: string) => Promise<User>;
+  loginWithEmail: (email: string, password: string) => Promise<User | null>;
+  signUpWithEmailAuth: (email: string, password: string) => Promise<User | null>;
   resetPasswordAuth: (email: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -26,105 +25,144 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [appConfig, setAppConfig] = useState<any>(() => {
     const cached = localStorage.getItem('app_config');
     try {
-      return cached ? JSON.parse(cached) : null;
+      return cached ? JSON.parse(cached) : { maintenanceMode: false, registrationEnabled: true };
     } catch (e) {
-      return null;
+      return { maintenanceMode: false, registrationEnabled: true };
     }
   });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 1. Real-time App Config Listener
-    const configDocRef = doc(db, 'system/config');
-    const unsubscribeConfig = onSnapshot(configDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        localStorage.setItem('app_config', JSON.stringify(data));
-        setAppConfig(data);
-      }
-    }, (error: any) => {
-      const errorMsg = error?.message || String(error);
-      if (errorMsg.includes('Quota') || errorMsg.includes('quota')) {
-        console.warn("Config snapshot: Quota exceeded, using cache.");
-      } else {
-        console.error("Error in global config snapshot listener:", error);
-      }
-      // Try to load from cache on error
-      const cached = localStorage.getItem('app_config');
-      if (cached) setAppConfig(JSON.parse(cached));
-    });
-
-    console.log("Setting up global onAuthStateChanged listener...");
-    let unsubscribeProfile: (() => void) | null = null;
-
-    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+    // 1. Fetch App Config (Real-time listener for system_config)
+    const fetchConfig = async () => {
       try {
-        console.log("Global Auth state changed:", currentUser ? `User: ${currentUser.uid}` : "No user");
+        const { data, error } = await supabase
+          .from('system_config')
+          .select('*')
+          .eq('key', 'config')
+          .single();
+        
+        if (error) throw error;
+        
+        if (data && data.value) {
+          localStorage.setItem('app_config', JSON.stringify(data.value));
+          setAppConfig(data.value);
+        }
+      } catch (err) {
+        console.warn("Could not load app configuration from Supabase.", err);
+      }
+    };
+
+    fetchConfig();
+
+    let configSubscription: any = null;
+    try {
+      configSubscription = supabase
+        .channel('system_config_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'system_config', filter: 'key=eq.config' }, payload => {
+          const newData = (payload.new as any);
+          if (newData && newData.value) {
+            const newValue = newData.value;
+            localStorage.setItem('app_config', JSON.stringify(newValue));
+            setAppConfig(newValue);
+          }
+        })
+        .subscribe();
+    } catch (err) {
+      console.warn("Could not subscribe to configuration changes.", err);
+    }
+
+    console.log("Setting up global Supabase auth listener...");
+
+    let authListener: any = null;
+    try {
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        const currentUser = session?.user || null;
+        console.log("Global Auth state changed:", event, currentUser ? `User: ${currentUser.id}` : "No user");
         setUser(currentUser);
         
         if (currentUser) {
-          // Check if profile exists, create if not
-          await createUserProfile(currentUser);
-          
-          // Listen for real-time profile updates (ONLY ONE LISTENER GLOBALLY)
-          if (unsubscribeProfile) unsubscribeProfile();
-          unsubscribeProfile = onSnapshot(doc(db, 'users', currentUser.uid), (docSnap) => {
-            if (docSnap.exists()) {
-              const data = docSnap.data();
-              localStorage.setItem(`profile_${currentUser.uid}`, JSON.stringify(data));
-              setProfile(data);
+          try {
+            // Ensure profile exists
+            await createUserProfile(currentUser);
+            
+            // Fetch profile
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', currentUser.id)
+              .single();
+            
+            if (profileError) throw profileError;
+            
+            if (profileData) {
+              const userPerms = profileData.permissions || await getUserPermissionsConfig(currentUser.id) || [];
+              const enrichedProfile = { ...profileData, permissions: userPerms };
+              localStorage.setItem(`profile_${currentUser.id}`, JSON.stringify(enrichedProfile));
+              setProfile(enrichedProfile);
             }
-            setLoading(false);
-          }, (error: any) => {
-            const errorMsg = error?.message || String(error);
-            if (errorMsg.includes('Quota') || errorMsg.includes('quota')) {
-              console.warn("Profile snapshot: Quota exceeded, using cache.");
-            } else {
-              console.error("Error in global profile snapshot listener:", error);
-            }
-            // Try to load from cache on error
-            const cached = localStorage.getItem(`profile_${currentUser.uid}`);
+          } catch (profileErr) {
+            console.error("Error setting up session profile:", profileErr);
+            // Fallback load from cache
+            const cached = localStorage.getItem(`profile_${currentUser.id}`);
             if (cached) setProfile(JSON.parse(cached));
-            setLoading(false);
-          });
+          }
+
+          // Subscribe to profile changes
+          let profileSubscription: any = null;
+          try {
+            profileSubscription = supabase
+              .channel(`profile_${currentUser.id}`)
+              .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${currentUser.id}` }, async payload => {
+                if (payload.new) {
+                  const userPerms = payload.new.permissions || await getUserPermissionsConfig(currentUser.id) || [];
+                  setProfile({ ...payload.new, permissions: userPerms });
+                }
+              })
+              .subscribe();
+          } catch (subErr) {
+            console.warn("Could not subscribe to live profile changes:", subErr);
+          }
+
+          setLoading(false);
+          return () => {
+            if (profileSubscription) {
+              profileSubscription.unsubscribe();
+            }
+          };
         } else {
           setProfile(null);
-          if (unsubscribeProfile) {
-            unsubscribeProfile();
-            unsubscribeProfile = null;
-          }
           setLoading(false);
         }
-      } catch (error: any) {
-        if (error.message?.includes('Quota') || error.message?.includes('quota')) {
-          console.warn("Global Auth state changed: Quota exceeded, using cached profile if available.");
-          const cached = localStorage.getItem(`profile_${currentUser?.uid}`);
-          if (cached) setProfile(JSON.parse(cached));
-        } else {
-          console.error("Error in global onAuthStateChanged:", error);
-        }
-        setLoading(false);
-      }
-    });
+      });
+      authListener = subscription;
+    } catch (authErr) {
+      console.error("Critical error setting up auth state listener:", authErr);
+      setLoading(false);
+    }
 
     return () => {
-      unsubscribeConfig();
-      unsubscribeAuth();
-      if (unsubscribeProfile) unsubscribeProfile();
+      if (configSubscription) {
+        configSubscription.unsubscribe();
+      }
+      if (authListener) {
+        authListener.unsubscribe();
+      }
     };
   }, []);
 
-  const isAdmin = profile?.role === 'admin' || (user?.email && ADMIN_EMAILS.includes(user.email));
+  const isAdmin = profile?.role === 'admin' || (user?.email && ADMIN_EMAILS.map(e => e.toLowerCase()).includes(user.email.toLowerCase()));
   
   const mergedUser = useMemo(() => {
     if (!user) return null;
     return {
+      uid: user.id, // Keep uid for compatibility
+      id: user.id,
+      email: user.email,
       ...user,
       ...profile,
-      uid: user.uid,
-      email: user.email
     };
-  }, [user?.uid, profile]);
+  }, [user?.id, profile]);
 
   const loginWithEmail = async (email: string, password: string) => {
     return await signInWithEmail(email, password);
@@ -141,7 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       localStorage.clear();
-      await signOut(auth);
+      await supabase.auth.signOut();
       window.location.reload();
     } catch (error) {
       console.error("Error signing out", error);

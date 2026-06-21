@@ -1,5 +1,37 @@
 import { QuizQuestion } from '../../../types';
 
+function formatImageUrls(text: string): string {
+  if (!text) return '';
+  
+  // 1. First replace curly-braced links: {{http...}}
+  let processed = text.replace(/\{\{\s*([^\}]+?)\s*\}\}/g, '<img class="qimg" src="$1">');
+  
+  // 2. Next, detect any naked URLs (not inside src="...") that look like images or are directly URL strings.
+  // We match any standard URL, making sure we don't double wrap existing img tags.
+  const tokenRegex = /(<img\s+[^>]*src=["']?[^>"'\s]+["']?[^>]*>)|(https?:\/\/[^\s"'<>\(\)]+)/gi;
+  processed = processed.replace(tokenRegex, (match, p1, p2) => {
+    if (p1) {
+      // Already an img tag, keep it as is
+      return p1;
+    }
+    if (p2) {
+      // Plain naked URL, check if it looks like an image, is from testmoz content, or is meant as an image
+      const isImage = /\.(png|jpg|jpeg|gif|webp|svg|bmp)(\?.*)?$/i.test(p2) || 
+                      /usercontent/i.test(p2) || 
+                      /ugc/i.test(p2) || 
+                      /image/i.test(p2);
+                      
+      if (isImage) {
+        return `<img class="qimg" src="${p2}">`;
+      }
+      return p2;
+    }
+    return match;
+  });
+  
+  return processed;
+}
+
 export function exportToCSV(questions: QuizQuestion[], suffix: string = '1', filename: string = '') {
   // Define CSV headers exactly as requested
   const headers = [
@@ -23,11 +55,11 @@ export function exportToCSV(questions: QuizQuestion[], suffix: string = '1', fil
 
 
   const rows = questions.map(q => {
-    const opt1 = q.options[0] || '';
-    const opt2 = q.options[1] || '';
-    const opt3 = q.options[2] || '';
-    const opt4 = q.options[3] || '';
-    const opt5 = q.options[4] || '';
+    const opt1 = q.options[0] ? formatImageUrls(q.options[0]) : '';
+    const opt2 = q.options[1] ? formatImageUrls(q.options[1]) : '';
+    const opt3 = q.options[2] ? formatImageUrls(q.options[2]) : '';
+    const opt4 = q.options[3] ? formatImageUrls(q.options[3]) : '';
+    const opt5 = q.options[4] ? formatImageUrls(q.options[4]) : '';
     
     const answer = q.correctOptionIndex + 1;
     
@@ -37,9 +69,13 @@ export function exportToCSV(questions: QuizQuestion[], suffix: string = '1', fil
     const qType = 1;
     const qSection = sValue;
 
+    const processedQuestion = q.question ? formatImageUrls(q.question) : '';
+
     const fullQuestion = q.image 
-      ? `${q.question} <br />\r\n<img class="qimg" src="${q.image}">` 
-      : q.question;
+      ? `${processedQuestion} <br />\r\n<img class="qimg" src="${q.image}">` 
+      : processedQuestion;
+
+    const processedExplanation = q.explanation ? formatImageUrls(q.explanation) : '';
 
     const fields = [
       escapeCSV(fullQuestion),
@@ -49,7 +85,7 @@ export function exportToCSV(questions: QuizQuestion[], suffix: string = '1', fil
       escapeCSV(opt4),
       escapeCSV(opt5),
       answer, // Number - no quotes
-      escapeCSV(q.explanation || ''),
+      escapeCSV(processedExplanation),
       // Type/Section handling: Based on the new rule: Type=1, Section=Suffix
       qType,
       isNaN(Number(qSection)) ? escapeCSV(qSection) : qSection

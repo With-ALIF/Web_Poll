@@ -1,39 +1,30 @@
-import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
-import { db } from '../../../backend/firebase';
+import { supabase } from '../../../lib/supabase';
 import { Note } from '../../../types';
-import { handleFirestoreError, OperationType } from '../../../lib/firestoreUtils';
 
-const COLLECTION_NAME = 'notes';
+const TABLE_NAME = 'notes';
 
 export async function fetchUserNotes(userId: string): Promise<Note[]> {
   try {
-    const q = query(
-      collection(db, COLLECTION_NAME),
-      where('userId', '==', userId),
-      orderBy('createdAt', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-    const notes: Note[] = [];
+    const { data, error } = await supabase
+      .from(TABLE_NAME)
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
     
-    querySnapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      notes.push({
-        id: docSnap.id,
-        userId: data.userId,
-        title: data.title || 'Untitled Note',
-        rawInput: data.rawInput || '',
-        formattedContent: data.formattedContent || '',
-        status: data.status || 'draft',
-        createdAt: data.createdAt,
-        updatedAt: data.updatedAt
-      } as Note);
-    });
-    return notes;
+    return (data || []).map(item => ({
+      id: item.id,
+      userId: item.user_id,
+      title: item.title || 'Untitled Note',
+      rawInput: item.raw_input || '',
+      formattedContent: item.formatted_content || '',
+      status: item.status || 'draft',
+      createdAt: item.created_at,
+      updatedAt: item.updated_at
+    })) as Note[];
   } catch (error: any) {
     console.error("Error in fetchUserNotes:", error);
-    try {
-      handleFirestoreError(error, OperationType.LIST, COLLECTION_NAME);
-    } catch (_) {}
     return [];
   }
 }

@@ -1,101 +1,155 @@
-import { collection, getDocs, query, orderBy, deleteDoc, doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth, firebaseConfig } from '../../../backend/firebase';
-import { handleFirestoreError, OperationType } from '../../../lib/firestoreUtils';
-import { initializeApp, deleteApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { supabase } from '../../../lib/supabase';
+import { getAllUserPermissionsConfigs } from './permissionHelper';
 
 export const fetchAllUsers = async () => {
   try {
-    const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
-    const querySnapshot = await getDocs(q);
-    const users: any[] = [];
-    querySnapshot.forEach((doc) => {
-      users.push({ id: doc.id, ...doc.data() });
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    const response = await fetch('/api/admin/list-users', {
+      headers: { 'authorization': token ? `Bearer ${token}` : '' }
     });
+    
+    let resData: any = {};
+    const resText = await response.text();
+    if (resText) {
+      try {
+        resData = JSON.parse(resText);
+      } catch (e) {
+        console.error("Non-JSON response from list-users API:", resText);
+      }
+    }
+    
+    const users = resData.users || [];
     localStorage.setItem('admin_user_list', JSON.stringify(users));
     return users;
   } catch (error: any) {
-    if (error.message?.includes('Quota') || error.message?.includes('quota')) {
-      const cached = localStorage.getItem('admin_user_list');
-      if (cached) return JSON.parse(cached);
-    }
-    handleFirestoreError(error, OperationType.LIST, 'users');
+    const cached = localStorage.getItem('admin_user_list');
+    if (cached) return JSON.parse(cached);
+    console.error("Error in fetchAllUsers:", error);
     return [];
   }
 };
 
+export const loadAdminUsers = fetchAllUsers;
+
 export const deleteUserByAdmin = async (userId: string) => {
   try {
-    await deleteDoc(doc(db, 'users', userId));
-    console.log("User deleted successfully by admin");
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+
+    const response = await fetch('/api/admin/delete-user', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'authorization': token ? `Bearer ${token}` : '',
+      },
+      body: JSON.stringify({ userId })
+    });
+
+    const resText = await response.text();
+    let resData: any = {};
+    try { resData = resText ? JSON.parse(resText) : {}; } catch(e) {}
+    if (!response.ok) {
+      throw new Error(resData.error || "Failed to delete user");
+    }
+    console.log("User profile and auth deleted successfully by admin via backend API");
   } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, 'users/' + userId);
+    console.error("Error in deleteUserByAdmin:", error);
     throw error;
   }
 };
 
 export const updateUserPermissions = async (userId: string, permissions: string[]) => {
   try {
-    await setDoc(doc(db, 'users', userId), { permissions }, { merge: true });
-    console.log("User permissions updated successfully");
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+
+    const response = await fetch('/api/admin/update-permissions', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'authorization': token ? `Bearer ${token}` : '',
+      },
+      body: JSON.stringify({ userId, permissions })
+    });
+
+    const resText = await response.text();
+    let resData: any = {};
+    try { resData = resText ? JSON.parse(resText) : {}; } catch(e) {}
+    if (!response.ok) {
+      throw new Error(resData.error || "Failed to update permissions");
+    }
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, 'users/' + userId);
+    console.error("Error in updateUserPermissions:", error);
     throw error;
   }
 };
 
 export const updateUser = async (userId: string, data: any) => {
   try {
-    await setDoc(doc(db, 'users', userId), data, { merge: true });
+    const { error } = await supabase
+      .from('profiles')
+      .update(data)
+      .eq('id', userId);
+    
+    if (error) throw error;
     console.log("User updated successfully");
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, 'users/' + userId);
+    console.error("Error in updateUser:", error);
+    throw error;
+  }
+};
+
+export const resetUserPassword = async (userId: string, newPassword: string) => {
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+
+    const response = await fetch('/api/admin/reset-password', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'authorization': token ? `Bearer ${token}` : '',
+      },
+      body: JSON.stringify({ userId, newPassword })
+    });
+
+    const resText = await response.text();
+    let resData: any = {};
+    try { resData = resText ? JSON.parse(resText) : {}; } catch(e) {}
+    if (!response.ok) {
+      throw new Error(resData.error || "Failed to reset password");
+    }
+  } catch (error) {
+    console.error("Error in resetUserPassword:", error);
     throw error;
   }
 };
 
 export const createUserByAdmin = async (email: string, displayName: string, password?: string, permissions: string[] = []) => {
-  let secondaryApp;
   try {
-    const finalPassword = password || Math.random().toString(36).slice(-8);
-    
-    // Create a secondary app instance to avoid logging out the admin
-    secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
-    const secondaryAuth = getAuth(secondaryApp);
-    
-    const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, finalPassword);
-    const user = userCredential.user;
-    
-    // Write to Firestore using the primary db instance (admin's auth context)
-    await setDoc(doc(db, 'users', user.uid), {
-      uid: user.uid,
-      email: user.email,
-      displayName: displayName,
-      role: 'user',
-      permissions: permissions,
-      createdAt: serverTimestamp()
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+
+    const response = await fetch('/api/admin/create-user', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'authorization': token ? `Bearer ${token}` : '',
+      },
+      body: JSON.stringify({ email, displayName, password, permissions })
     });
-    
-    // Clean up the secondary app instance
-    await deleteApp(secondaryApp);
-    
-    return { email, password: finalPassword, displayName };
+
+    const resText = await response.text();
+    let resData: any = {};
+    try { resData = resText ? JSON.parse(resText) : {}; } catch(e) {}
+    if (!response.ok) {
+      throw new Error(resData.error || "Failed to create user");
+    }
+
+    return resData.user || { email, password, displayName };
   } catch (error: any) {
-    if (secondaryApp) {
-      try { await deleteApp(secondaryApp); } catch (e) {}
-    }
-    
-    if (error.code === 'auth/email-already-in-use') {
-      throw new Error('This email is already registered.');
-    }
-    if (error.code === 'auth/invalid-email') {
-      throw new Error('Invalid email address.');
-    }
-    if (error.code === 'auth/weak-password') {
-      throw new Error('Password is too weak. It must be at least 6 characters.');
-    }
-    
-    handleFirestoreError(error, OperationType.WRITE, 'users');
+    console.error("Error in createUserByAdmin:", error);
     throw error;
   }
 };

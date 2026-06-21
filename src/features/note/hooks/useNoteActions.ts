@@ -27,7 +27,14 @@ export function useNoteActions({ user, settings, fixedBotToken }: NoteActionsPro
     const formattedDate = new Date().toLocaleDateString('bn-BD', { year: 'numeric', month: 'long', day: 'numeric' });
     const prefix = `📚 *${activeNote.title}*\n👤 *Created By:* ${userDisplayName}\n📅 *Date:* ${formattedDate}\n━━━━━━━━━━━━━━━━━━━━━━\n\n`;
     const token = settings.botToken || fixedBotToken;
-    await sendNoteToTelegram(prefix + activeNote.formattedContent, { ...settings, botToken: token }, channelId);
+    
+    let content = activeNote.formattedContent;
+    const suffix = settings.explanationSuffix?.trim();
+    if (suffix && !content.includes(suffix)) {
+      content = `${content}\n\n${suffix}`;
+    }
+
+    await sendNoteToTelegram(prefix + content, { ...settings, botToken: token }, channelId);
     return true;
   };
 

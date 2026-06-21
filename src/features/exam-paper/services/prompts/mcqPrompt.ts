@@ -4,26 +4,21 @@ import { ExamPaperSettings } from "../../types";
 export function getMCQPrompt(content: string, settings: ExamPaperSettings): string {
   const half = Math.ceil(settings.totalQuestions / 2);
   return `
-Generate high-quality Multiple Choice Questions (MCQs) based on the input content.
-
-INPUT CONTENT:
+Generate professional MCQ exam paper content based on:
 ${content}
 
-SETTINGS:
-* Title: ${settings.title}
-* Total Questions: ${settings.totalQuestions}
-* Difficulty: ${settings.difficulty}
-* Include Explanation: ${settings.includeExplanation ? 'YES' : 'NO'}
+CONFIG:
+- Title: ${settings.title}
+- Subtitle: ${settings.subtitle}
+- Total Questions: ${settings.totalQuestions}
+- Difficulty: ${settings.difficulty}
+- Include Explanation: ${settings.includeExplanation ? 'YES' : 'NO'}
 
 REQUIREMENTS:
-1. Generate MCQs in the SAME LANGUAGE as the input content.
-2. 4 options per question, ONE correct answer.
-3. If "Include Explanation" is YES, provide 3-4 lines of explanation.
+1. Meta info: title, subtitle, marks, time, set, footerName, footerLink.
+2. Questions: Exactly ${settings.totalQuestions} items.
+3. Columns: Split exactly at question ${half}.
 
-FORMAT:
-* Left column: Q1–Q${half}
-* Right column: Q${half + 1}–Q${settings.totalQuestions}
-
-OUTPUT JSON MUST MATCH THE SCHEMA.
+RESPONSE: Return raw JSON only.
 `;
 }

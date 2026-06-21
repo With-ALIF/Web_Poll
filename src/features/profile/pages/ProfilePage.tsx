@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../auth/hooks/useAuth';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../../../backend/firebase';
+import { supabase } from '../../../lib/supabase';
 import { deleteUserAccount } from '../../auth/services/authService';
 import { Shield, BarChart3, Users, LogOut } from 'lucide-react';
 import ProfileHeader from '../components/ProfileHeader';
@@ -30,12 +29,15 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user) {
       const fetchProfile = async () => {
-        const userRef = doc(db, 'users', user.uid);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          const data = userSnap.data();
-          setDisplayName(data.displayName || '');
-          setPhotoURL(data.photoURL || '');
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        if (data) {
+          setDisplayName(data.display_name || '');
+          setPhotoURL(data.photo_url || '');
         }
       };
       fetchProfile();
@@ -47,11 +49,15 @@ export default function ProfilePage() {
     setLoading(true);
     setMessage('');
     try {
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        displayName,
-        photoURL
-      });
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          display_name: displayName,
+          photo_url: photoURL
+        })
+        .eq('id', user.id);
+
+      if (error) throw error;
       setMessage('Profile updated successfully!');
     } catch (error) {
       setMessage('Failed to update profile.');
@@ -66,7 +72,7 @@ export default function ProfilePage() {
     setLoading(true);
     setDeleteError('');
     try {
-      await deleteUserAccount(user, deletePassword);
+      await deleteUserAccount();
       logout();
     } catch (error: any) {
       setDeleteError(error.message || 'Failed to delete account.');

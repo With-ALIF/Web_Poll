@@ -4,7 +4,7 @@ import { QuizQuestion, TelegramSettings } from '../../../types';
 import { sendQuizToTelegram } from '../services/telegramPollService';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { getEffectiveSettings } from '../../settings/utils/settingsUtils';
-import { updateUserStats } from '../services/quizService';
+import { incrementUserStats } from '../services/quizService';
 
 interface UseTelegramProps {
   settings: TelegramSettings;
@@ -32,15 +32,18 @@ export function useTelegram({ settings, questions, setQuestions, setStats, botTo
   const canEditSuffix = isAdmin || user?.permissions?.includes('suffix-edit');
   const globalDefaultSuffix = appConfig?.defaultSuffix;
 
-  const handleSendToTelegram = useCallback(async (id: string) => {
+  const handleSendToTelegram = useCallback(async (id: string, customQuestion?: QuizQuestion) => {
     const target = (user && settings.selectedChannelIds?.length) ? settings.selectedChannelIds : [settings.activeChannelId || settings.chatId || ''];
     if (target.length === 1 && !target[0]) {
       setSendError('Please configure your Telegram Chat ID in settings.');
       navigate('/settings');
       return;
     }
-    setQuestions(p => p.map(q => q.id === id ? { ...q, status: 'sending' } : q));
-    const qToSend = questions.find(q => q.id === id);
+    const exists = questions.some(q => q.id === id);
+    if (exists) {
+      setQuestions(p => p.map(q => q.id === id ? { ...q, status: 'sending' } : q));
+    }
+    const qToSend = customQuestion || questions.find(q => q.id === id);
     if (!qToSend) return;
     try {
       for (const chatId of target) {
@@ -49,12 +52,14 @@ export function useTelegram({ settings, questions, setQuestions, setStats, botTo
         await sendQuizToTelegram(qToSend, effectiveSettings, chatId);
         if (target.length > 1) await new Promise(r => setTimeout(r, 500));
       }
-      setQuestions(p => p.map(q => q.id === id ? { ...q, status: 'sent' } : q));
+      if (exists) {
+        setQuestions(p => p.map(q => q.id === id ? { ...q, status: 'sent' } : q));
+      }
       setStats(p => {
         const s = { ...p, sent: p.sent + 1 };
         if (user) {
           localStorage.setItem(`stats_${user.uid}`, JSON.stringify(s));
-          updateUserStats(user.uid, s);
+          incrementUserStats(user.uid, { generated: 0, sent: 1 });
         } else {
           localStorage.setItem('quizStats', JSON.stringify(s));
         }
@@ -62,7 +67,10 @@ export function useTelegram({ settings, questions, setQuestions, setStats, botTo
       });
     } catch (err: any) {
       setSendError(`Failed to send: ${err.message}`);
-      setQuestions(p => p.map(q => q.id === id ? { ...q, status: 'error' } : q));
+      if (exists) {
+        setQuestions(p => p.map(q => q.id === id ? { ...q, status: 'error' } : q));
+      }
+      throw err;
     }
   }, [user?.uid, settings, questions, botToken, navigate, setQuestions, setStats, canEditSuffix, globalDefaultSuffix]);
 

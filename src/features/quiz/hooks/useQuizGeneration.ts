@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { QuizQuestion } from '../../../types';
 import { generateQuizFromText, generateQuizFromImage } from '../services/geminiService';
-import { batchSaveQuizzes, updateUserStats } from '../services/quizService';
+import { batchSaveQuizzes, incrementUserStats } from '../services/quizService';
 
 export function useQuizGeneration(
   user: any,
@@ -40,7 +40,7 @@ export function useQuizGeneration(
       const newStats = { ...prev, generated: prev.generated + generated.length };
       if (user) {
         localStorage.setItem(`stats_${user.uid}`, JSON.stringify(newStats));
-        updateUserStats(user.uid, newStats);
+        incrementUserStats(user.uid, { generated: generated.length, sent: 0 });
       } else {
         localStorage.setItem('quizStats', JSON.stringify(newStats));
       }

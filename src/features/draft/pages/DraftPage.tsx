@@ -6,6 +6,7 @@ import DraftToolbar from '../components/DraftToolbar';
 import DraftDetailsModal from '../components/DraftDetailsModal';
 import DraftCsvExportModal from '../components/DraftCsvExportModal';
 import { useAppInit } from '../../../app/useAppInit';
+import DeleteConfirmModal from '../../../components/DeleteConfirmModal';
 
 export default function DraftPage() {
   const { drafts, deleteDraft, sendDraftToTelegram } = useDrafts();
@@ -13,7 +14,10 @@ export default function DraftPage() {
   const {
     selectedIds, selectedDraftForDetails, setSelectedDraftForDetails,
     isExportModalOpen, setIsExportModalOpen,
-    handleSend, toggleSelect, toggleSelectAll, handleBulkDelete, handleBulkSend
+    deleteModalOpen, setDeleteModalOpen,
+    isBulkDelete, isDeleting,
+    handleSend, toggleSelect, toggleSelectAll, 
+    handleBulkDelete, handleSingleDelete, confirmDelete, handleBulkSend
   } = useDraftPageActions(drafts, deleteDraft, sendDraftToTelegram, telegram);
 
   const selectedDrafts = drafts.filter(d => selectedIds.has(d.id));
@@ -42,7 +46,7 @@ export default function DraftPage() {
       <DraftList 
         drafts={drafts} 
         onSend={handleSend} 
-        onDelete={deleteDraft}
+        onDelete={handleSingleDelete}
         selectedIds={selectedIds}
         onToggleSelect={toggleSelect}
         onOpenDetails={setSelectedDraftForDetails}
@@ -61,6 +65,17 @@ export default function DraftPage() {
           onClose={() => setIsExportModalOpen(false)}
         />
       )}
+
+      <DeleteConfirmModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        isDeleting={isDeleting}
+        title={isBulkDelete ? "Delete Drafts" : "Delete Draft"}
+        message={isBulkDelete 
+          ? `Are you sure you want to delete ${selectedIds.size} selected drafts? This action cannot be undone.` 
+          : "Are you sure you want to delete this draft? This action cannot be undone."}
+      />
     </div>
   );
 }

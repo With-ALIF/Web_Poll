@@ -11,9 +11,12 @@ export function formatQuestionText(question: QuizQuestion, settings: TelegramSet
 
 export function formatExplanationText(question: QuizQuestion, settings: TelegramSettings): string {
   let finalExplanation = question.explanation || '';
-  if (settings.explanationSuffix?.trim()) {
-    finalExplanation = `${finalExplanation}\n\n${settings.explanationSuffix.trim()}`;
+  const suffix = settings.explanationSuffix?.trim();
+  
+  if (suffix && !finalExplanation.includes(suffix)) {
+    finalExplanation = `${finalExplanation}\n\n${suffix}`;
   }
+  
   if (finalExplanation.length > 200) return finalExplanation.substring(0, 197) + '...';
   return finalExplanation;
 }

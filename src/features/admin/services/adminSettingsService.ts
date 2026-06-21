@@ -1,7 +1,7 @@
-import { db } from '../../../backend/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { supabase } from '../../../lib/supabase';
 
-const CONFIG_DOC_PATH = 'system/config';
+const TABLE_NAME = 'system_config';
+const CONFIG_KEY = 'config';
 
 export interface AppConfig {
   defaultSuffix: string;
@@ -11,31 +11,52 @@ export interface AppConfig {
 
 export const fetchAppConfig = async (): Promise<AppConfig | null> => {
   try {
-    const docRef = doc(db, CONFIG_DOC_PATH);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      const data = docSnap.data() as AppConfig;
-      localStorage.setItem('app_config', JSON.stringify(data));
-      return data;
+    const { data, error } = await supabase
+      .from(TABLE_NAME)
+      .select('value')
+      .eq('key', CONFIG_KEY)
+      .single();
+
+    if (error) throw error;
+    
+    if (data && data.value) {
+      localStorage.setItem('app_config', JSON.stringify(data.value));
+      return data.value as AppConfig;
     }
     return null;
   } catch (error: any) {
-    const errorMsg = error?.message || String(error);
-    if (errorMsg.includes('Quota') || errorMsg.includes('quota')) {
-      console.warn("Fetch App Config: Quota exceeded, using cache.");
-      const cached = localStorage.getItem('app_config');
-      if (cached) return JSON.parse(cached);
-    } else {
-      console.error("Error fetching app config:", error);
-    }
+    console.error("Error fetching app config:", error);
+    const cached = localStorage.getItem('app_config');
+    if (cached) return JSON.parse(cached);
     return null;
   }
 };
 
 export const saveAppConfig = async (config: AppConfig): Promise<boolean> => {
   try {
-    const docRef = doc(db, CONFIG_DOC_PATH);
-    await setDoc(docRef, config);
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+
+    const response = await fetch('/api/admin/save-config', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'authorization': token ? `Bearer ${token}` : '',
+      },
+      body: JSON.stringify({
+        key: CONFIG_KEY,
+        value: config
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to save config');
+    }
+
+    // Update local cache
+    localStorage.setItem('app_config', JSON.stringify(config));
+    
     return true;
   } catch (error) {
     console.error("Error saving app config:", error);

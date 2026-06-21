@@ -1,6 +1,6 @@
 import React from 'react';
 import { QuizQuestion } from '../../../types';
-import { saveQuiz, deleteQuiz, updateUserStats } from '../services/quizService';
+import { saveQuiz, deleteQuiz, incrementUserStats } from '../services/quizService';
 
 export function useQuizActions(
   user: any,
@@ -24,7 +24,7 @@ export function useQuizActions(
       const newStats = { ...prev, generated: prev.generated + 1 };
       if (user) {
         localStorage.setItem(`stats_${user.uid}`, JSON.stringify(newStats));
-        updateUserStats(user.uid, newStats);
+        incrementUserStats(user.uid, { generated: 1, sent: 0 });
       } else {
         localStorage.setItem('quizStats', JSON.stringify(newStats));
       }

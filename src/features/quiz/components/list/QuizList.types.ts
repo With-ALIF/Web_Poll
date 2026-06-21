@@ -28,4 +28,6 @@ export interface QuizListProps {
   isStopping?: boolean;
   handleStopSend?: () => void;
   bulkSendStatus?: string | null;
+  canEditSuffix?: boolean;
+  globalDefaultSuffix?: string;
 }

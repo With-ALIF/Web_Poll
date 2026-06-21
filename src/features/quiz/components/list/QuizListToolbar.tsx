@@ -11,6 +11,8 @@ interface QuizListToolbarProps {
   handleSendAll: () => void;
   selectedTopic: string;
   onTopicChange: (topic: string) => void;
+  canEditSuffix?: boolean;
+  globalDefaultSuffix?: string;
 }
 
 export default function QuizListToolbar({
@@ -19,48 +21,61 @@ export default function QuizListToolbar({
   onChannelChange,
   handleSendAll,
   selectedTopic,
-  onTopicChange
+  onTopicChange,
+  canEditSuffix: canEditSuffixProp,
+  globalDefaultSuffix
 }: QuizListToolbarProps) {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   
-  const sendableCount = questions.filter(q => q.status !== 'sending').length;
-  const isSending = questions.some(q => q.status === 'sending');
-  const allSent = questions.length > 0 && questions.every(q => q.status === 'sent');
+  const canEditSuffix = canEditSuffixProp !== undefined ? canEditSuffixProp : (isAdmin || user?.permissions?.includes('suffix-edit'));
+  
+  const sendableCount = (questions || []).filter(q => q.status !== 'sending').length;
+  const isSending = (questions || []).some(q => q.status === 'sending');
+  const allSent = (questions || []).length > 0 && (questions || []).every(q => q.status === 'sent');
 
-  const visibleChannels = (user && settings.selectedChannelIds && settings.selectedChannelIds.length > 0
-    ? settings.channels.filter(c => settings.selectedChannelIds?.includes(c.id))
-    : settings.channels
+  const channelsList = settings?.channels || [];
+  const selectedChannelIdsList = settings?.selectedChannelIds || [];
+
+  const visibleChannels = (user && selectedChannelIdsList.length > 0
+    ? channelsList.filter(c => selectedChannelIdsList.includes(c.id))
+    : channelsList
   );
 
   React.useEffect(() => {
-    if (visibleChannels.length > 0 && !visibleChannels.some(c => c.id === settings.activeChannelId)) {
+    if (visibleChannels.length > 0 && !visibleChannels.some(c => c.id === settings?.activeChannelId)) {
       onChannelChange(visibleChannels[0].id);
     }
-  }, [visibleChannels, settings.activeChannelId, onChannelChange]);
+  }, [visibleChannels, settings?.activeChannelId, onChannelChange]);
 
-  let displayPrefix = settings.questionPrefix;
-  let displaySuffix = settings.explanationSuffix;
+  let displayPrefix = settings?.questionPrefix || '';
+  let displaySuffix = (canEditSuffix ? settings?.explanationSuffix : (settings?.explanationSuffix || globalDefaultSuffix)) || '';
 
-  if (settings.activeChannelId) {
-    const activeChannel = settings.channels?.find(c => c.id === settings.activeChannelId);
+  if (settings?.activeChannelId) {
+    const activeChannel = (settings?.channels || []).find(c => c.id === settings.activeChannelId);
     if (activeChannel) {
       if (activeChannel.activePrefixId === 'none') {
         displayPrefix = '';
       } else if (activeChannel.activePrefixId) {
-        const prefixObj = settings.prefixes?.find(p => p.id === activeChannel.activePrefixId);
+        const prefixObj = (settings?.prefixes || []).find(p => p.id === activeChannel.activePrefixId);
         if (prefixObj) displayPrefix = prefixObj.content;
       }
 
       if (activeChannel.activeSuffixId === 'none') {
         displaySuffix = '';
       } else if (activeChannel.activeSuffixId) {
-        const suffixObj = settings.suffixes?.find(s => s.id === activeChannel.activeSuffixId);
-        if (suffixObj) displaySuffix = suffixObj.content;
+        const suffixObj = (settings?.suffixes || []).find(s => s.id === activeChannel.activeSuffixId);
+        if (suffixObj) {
+          displaySuffix = suffixObj.content;
+        } else if (!canEditSuffix && globalDefaultSuffix) {
+          displaySuffix = globalDefaultSuffix;
+        }
+      } else if (!canEditSuffix && globalDefaultSuffix) {
+        displaySuffix = globalDefaultSuffix;
       }
     }
   }
 
-  if (questions.length === 0) return null;
+  if (!questions || questions.length === 0) return null;
 
   return (
     <div className="flex flex-col gap-4">

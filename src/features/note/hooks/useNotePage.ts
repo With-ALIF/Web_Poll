@@ -33,7 +33,8 @@ export function useNotePage() {
       await exportPDF(state.activeNote.title, userDisplayName, notePrintRef);
       state.setMessage({ type: 'success', text: 'Beautiful PDF note downloaded successfully!' });
     } catch (err: any) {
-      state.setMessage({ type: 'error', text: 'Failed to export note as PDF.' });
+      console.error("PDF Export error details:", err);
+      state.setMessage({ type: 'error', text: `Failed to export note as PDF. Error: ${err.message || err}` });
     } finally {
       state.setIsDownloadingPdf(false);
     }

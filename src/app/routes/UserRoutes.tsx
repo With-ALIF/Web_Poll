@@ -29,6 +29,8 @@ export const useUserRoutes = ({ appState }: UserRoutesProps) => {
               saveSettings={settings.saveSettings}
               botToken={botToken}
               canEditSuffix={settings.canEditSuffix}
+              globalDefaultSuffix={settings.globalDefaultSuffix}
+              isLoading={settings.isLoading}
             />
           </ProtectedRoute>
         } 

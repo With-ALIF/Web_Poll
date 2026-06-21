@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { TelegramSettings } from '../../../types';
 import { useAuth } from '../../auth/hooks/useAuth';
 import { fetchSettings, saveSettings as saveSettingsToBackend } from '../services/settingsService';
@@ -7,6 +7,7 @@ import { DEFAULT_SUFFIX } from '../constants';
 
 export function useSettings() {
   const { user, isAdmin, appConfig } = useAuth();
+  const [isLoading, setIsLoading] = useState(true);
   const [globalDefaultSuffix, setGlobalDefaultSuffix] = useState(DEFAULT_SUFFIX);
   const [settings, setSettings] = useState<TelegramSettings>({ 
     botToken: '', 
@@ -21,32 +22,49 @@ export function useSettings() {
   const canEditSuffix = isAdmin || user?.permissions?.includes('suffix-edit');
 
   useEffect(() => {
-    const currentDefault = appConfig?.defaultSuffix || DEFAULT_SUFFIX;
+    const currentDefault = appConfig?.defaultSuffix ?? DEFAULT_SUFFIX;
     setGlobalDefaultSuffix(currentDefault);
 
     const loadSettings = async () => {
+      setIsLoading(true);
       if (user) {
-        // Load from Firestore
+        // Load from Database
         try {
           const data = await fetchSettings(user.uid);
           if (data) {
             // Apply default suffix if missing or if user cannot edit
+            let finalSuffix = currentDefault;
+            if (canEditSuffix) {
+               finalSuffix = (data.explanationSuffix !== undefined && data.explanationSuffix !== null) ? data.explanationSuffix : currentDefault;
+            }
+
             const finalizedData = {
+              botToken: '', 
+              channels: [],
+              activeChannelId: '',
+              questionPrefix: '',
+              prefixes: [],
+              suffixes: [],
               ...data,
-              explanationSuffix: (canEditSuffix && data.explanationSuffix) ? data.explanationSuffix : currentDefault
+              explanationSuffix: finalSuffix
             };
             setSettings(finalizedData);
+            // Ensure local storage is in sync
+            localStorage.setItem('telegramQuizSettings', JSON.stringify(finalizedData));
           } else {
             // If no settings in Firestore, check local storage and migrate
             loadFromLocalAndMigrate(currentDefault);
           }
         } catch (error) {
-          console.error("Error loading settings from Firestore", error);
+          console.error("Error loading settings from database", error);
           loadFromLocalAndMigrate(currentDefault);
+        } finally {
+          setIsLoading(false);
         }
       } else {
         // Load from Local Storage
         loadFromLocalAndMigrate(currentDefault);
+        setIsLoading(false);
       }
     };
 
@@ -54,7 +72,16 @@ export function useSettings() {
       const savedSettings = localStorage.getItem('telegramQuizSettings');
       if (savedSettings) {
         try {
-          const parsed = JSON.parse(savedSettings);
+          const parsed = {
+            botToken: '', 
+            channels: [],
+            activeChannelId: '',
+            questionPrefix: '',
+            explanationSuffix: defSuffixValue,
+            prefixes: [],
+            suffixes: [],
+            ...JSON.parse(savedSettings)
+          };
           
           // Migration from legacy chatId to channels
           if (parsed.chatId && (!parsed.channels || parsed.channels.length === 0)) {
@@ -69,13 +96,16 @@ export function useSettings() {
           }
           
           // Ensure default suffix if missing
-          if (!parsed.explanationSuffix) {
+          if (parsed.explanationSuffix === undefined || parsed.explanationSuffix === null) {
             parsed.explanationSuffix = defSuffixValue;
           }
           
+          if (!parsed.prefixes) parsed.prefixes = [];
+          if (!parsed.suffixes) parsed.suffixes = [];
+          
           setSettings(parsed);
           
-          // If user is logged in but didn't have Firestore settings, save them now
+          // If user is logged in but didn't have Database settings, save them now
           if (user) {
              saveSettingsToBackend(user.uid, parsed);
           }
@@ -99,7 +129,7 @@ export function useSettings() {
     };
   }, [settings, canEditSuffix, globalDefaultSuffix]);
 
-  const saveSettings = (newSettings: TelegramSettings) => {
+  const saveSettings = useCallback((newSettings: TelegramSettings) => {
     // If restricted, preserve the default suffix regardless of what was attempted to be saved
     const settingsToSave = canEditSuffix ? newSettings : { ...newSettings, explanationSuffix: globalDefaultSuffix };
     
@@ -108,12 +138,14 @@ export function useSettings() {
     if (user) {
       saveSettingsToBackend(user.uid, settingsToSave);
     }
-  };
+  }, [user, canEditSuffix, globalDefaultSuffix]);
 
   return useMemo(() => ({
     settings: effectiveSettings,
     setSettings,
     saveSettings,
-    canEditSuffix
-  }), [effectiveSettings, canEditSuffix]);
+    canEditSuffix,
+    isLoading,
+    globalDefaultSuffix
+  }), [effectiveSettings, canEditSuffix, isLoading, saveSettings, globalDefaultSuffix]);
 }

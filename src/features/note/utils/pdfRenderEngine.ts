@@ -11,7 +11,15 @@ export async function renderAndDownloadNote(
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   
   const renderZone = document.createElement('div');
-  renderZone.className = "fixed top-0 left-0 opacity-0 pointer-events-none z-[-200]";
+  // Render the elements off-screen or invisible within boundaries to ensure toPng can measure correct coordinates
+  renderZone.style.position = 'fixed';
+  renderZone.style.top = '0';
+  renderZone.style.left = '0';
+  renderZone.style.width = '794px';
+  renderZone.style.height = '1123px';
+  renderZone.style.opacity = '0.99'; // Some rendering engines require visibility
+  renderZone.style.pointerEvents = 'none';
+  renderZone.style.zIndex = '-9999';
   document.body.appendChild(renderZone);
 
   for (let index = 0; index < totalPages; index++) {
@@ -26,12 +34,16 @@ export async function renderAndDownloadNote(
 
     renderZone.appendChild(pageElement);
 
+    // Give the browser a small pause to parse layout styles fully
+    await new Promise(resolve => setTimeout(resolve, 60));
+
+    // Wait for a secure capture using toPng with skipFonts to prevent crawling font links and hanging
     const dataUrl = await toPng(pageElement, {
       cacheBust: true,
       backgroundColor: '#ffffff',
+      skipFonts: true,
       width: 794,
       height: 1123,
-      style: { transform: 'scale(1)', transformOrigin: 'top left' }
     });
 
     if (pageNum > 1) {

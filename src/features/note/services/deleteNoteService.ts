@@ -1,15 +1,17 @@
-import { doc, deleteDoc } from 'firebase/firestore';
-import { db } from '../../../backend/firebase';
-import { handleFirestoreError, OperationType } from '../../../lib/firestoreUtils';
+import { supabase } from '../../../lib/supabase';
 
-const COLLECTION_NAME = 'notes';
+const TABLE_NAME = 'notes';
 
 export async function deleteNote(noteId: string): Promise<void> {
   try {
-    const docRef = doc(db, COLLECTION_NAME, noteId);
-    await deleteDoc(docRef);
+    const { error } = await supabase
+      .from(TABLE_NAME)
+      .delete()
+      .eq('id', noteId);
+
+    if (error) throw error;
   } catch (error: any) {
     console.error("Error in deleteNote:", error);
-    handleFirestoreError(error, OperationType.DELETE, `${COLLECTION_NAME}/${noteId}`);
+    throw error;
   }
 }

@@ -13,6 +13,8 @@ interface SettingsPageProps {
   saveSettings: (settings: TelegramSettings) => void;
   botToken: string;
   canEditSuffix?: boolean;
+  globalDefaultSuffix?: string;
+  isLoading?: boolean;
 }
 
 export default function SettingsPage({
@@ -20,7 +22,9 @@ export default function SettingsPage({
   setSettings,
   saveSettings,
   botToken,
-  canEditSuffix = true
+  canEditSuffix = true,
+  globalDefaultSuffix,
+  isLoading = false
 }: SettingsPageProps) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -42,6 +46,17 @@ export default function SettingsPage({
     saveSettings(settings);
     // Removed navigate('/') to keep user on the settings page
   };
+
+  if (isLoading) {
+    return (
+      <div className="w-full flex items-center justify-center p-12">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
+          <p className="text-slate-500 font-medium animate-pulse text-sm">Loading your settings...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full">
@@ -67,7 +82,12 @@ export default function SettingsPage({
             onToggle={toggleChannelSelection}
           />
 
-          <FormattingSettings settings={settings} setSettings={saveSettings} canEditSuffix={canEditSuffix} />
+          <FormattingSettings 
+            settings={settings} 
+            setSettings={saveSettings} 
+            canEditSuffix={canEditSuffix} 
+            globalDefaultSuffix={globalDefaultSuffix}
+          />
         </div>
 
         <SettingsFooter onSave={handleSave} onLogout={logout} />

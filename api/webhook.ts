@@ -1,6 +1,6 @@
 import TelegramBot from 'node-telegram-bot-api';
 
-const BOT_TOKEN = "8783681142:AAEtAX66CEYfML0gx3ojJO1fLY01kPJORH4";
+const BOT_TOKEN = "8783681142:AAGcPnAIVZ6L4ivQQFqNC2hFIq0uZmtC51U";
 const bot = new TelegramBot(BOT_TOKEN);
 
 const welcomeMessage = (chatId: string) => `👋 স্বাগতম!
@@ -27,11 +27,13 @@ export default async function handler(req: any, res: any) {
   if (req.method === 'POST') {
     try {
       const update = req.body;
+      console.log("Webhook update:", JSON.stringify(update));
       const msg = update.message || update.channel_post;
+      console.log("Msg:", JSON.stringify(msg));
       
-      if (msg && msg.text) {
+      if (msg && (msg.text || msg.caption)) {
+        const text = (msg.text || msg.caption)!.trim();
         const chatId = msg.chat.id.toString();
-        const text = msg.text.trim();
         console.log(`Received message from ${chatId}: ${text}`);
 
         if (text.startsWith('/start')) {
@@ -39,7 +41,7 @@ export default async function handler(req: any, res: any) {
             parse_mode: 'Markdown',
             disable_web_page_preview: true 
           });
-        } else if (text.startsWith('/id') || text.startsWith('/chatid')) {
+        } else if (text.toLowerCase().startsWith('/id') || text.toLowerCase().startsWith('/chatid')) {
           // Always reply to explicit ID commands
           await bot.sendMessage(chatId, `আপনার Chat ID হলো: \`${chatId}\`\nএটি কপি করে Web App এর Settings এ বসান।`, { parse_mode: 'Markdown' });
         }

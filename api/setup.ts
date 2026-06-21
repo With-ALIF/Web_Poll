@@ -1,6 +1,6 @@
 import TelegramBot from 'node-telegram-bot-api';
 
-const BOT_TOKEN = "8783681142:AAEtAX66CEYfML0gx3ojJO1fLY01kPJORH4";
+const BOT_TOKEN = "8783681142:AAGcPnAIVZ6L4ivQQFqNC2hFIq0uZmtC51U";
 const bot = new TelegramBot(BOT_TOKEN);
 
 export default async function handler(req: any, res: any) {

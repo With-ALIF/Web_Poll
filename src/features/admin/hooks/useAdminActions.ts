@@ -1,15 +1,21 @@
 import { useState } from 'react';
-import { deleteUserByAdmin, createUserByAdmin, updateUserPermissions } from '../services/adminService';
+import { deleteUserByAdmin, createUserByAdmin, updateUserPermissions, resetUserPassword } from '../services/adminService';
 
 export function useAdminActions(onSuccess: () => void) {
   const [loading, setLoading] = useState(false);
 
   const handleDelete = async (userId: string) => {
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    setLoading(true);
     try {
       await deleteUserByAdmin(userId);
       onSuccess();
-    } catch (error) { alert('Failed to delete user.'); }
+      return true;
+    } catch (error) {
+      alert('Failed to delete user.');
+      return false;
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCreateUser = async (data: any) => {
@@ -36,5 +42,18 @@ export function useAdminActions(onSuccess: () => void) {
     } finally { setLoading(false); }
   };
 
-  return { loading, handleDelete, handleCreateUser, handleSavePermissions };
+  const handleResetPassword = async (userId: string, newPassword: string) => {
+    setLoading(true);
+    try {
+      await resetUserPassword(userId, newPassword);
+      return true;
+    } catch (error: any) {
+      alert(error.message || 'Failed to reset password');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { loading, handleDelete, handleCreateUser, handleSavePermissions, handleResetPassword };
 }

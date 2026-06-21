@@ -1,47 +1,53 @@
-import { collection, doc, setDoc, getDocs, deleteDoc, query, where, writeBatch, serverTimestamp, onSnapshot, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../../../backend/firebase';
+import { supabase } from '../../../lib/supabase';
 import { QuizQuestion } from '../../../types';
-import { handleFirestoreError, OperationType } from '../../../lib/firestoreUtils';
+
+const TABLE_NAME = 'poll_questions';
 
 export const fetchQuizzes = async (userId: string) => {
   try {
-    const q = query(collection(db, 'quizzes'), where('userId', '==', userId));
-    const querySnapshot = await getDocs(q);
-    const loadedQuestions: QuizQuestion[] = [];
-    querySnapshot.forEach((doc) => {
-      loadedQuestions.push(doc.data() as QuizQuestion);
-    });
+    const { data, error } = await supabase
+      .from(TABLE_NAME)
+      .select('*')
+      .eq('user_id', userId);
+
+    if (error) throw error;
+    
+    // Need to map the database structure back to the QuizQuestion type
+    const loadedQuestions = (data || []).map((q: any) => ({
+      ...q,
+      correctOptionIndex: q.correct_option_index,
+    })) as unknown as QuizQuestion[];
+
     localStorage.setItem(`quizzes_${userId}`, JSON.stringify(loadedQuestions));
     return loadedQuestions;
   } catch (error: any) {
-    if (error.message?.includes('Quota') || error.message?.includes('quota')) {
-      const cached = localStorage.getItem(`quizzes_${userId}`);
-      if (cached) return JSON.parse(cached);
-    }
-    handleFirestoreError(error, OperationType.LIST, 'quizzes');
+    const cached = localStorage.getItem(`quizzes_${userId}`);
+    if (cached) return JSON.parse(cached);
+    console.error("Error in fetchQuizzes:", error);
     return [];
   }
 };
 
 export const subscribeToQuizzes = (userId: string, callback: (quizzes: QuizQuestion[]) => void) => {
-  const q = query(collection(db, 'quizzes'), where('userId', '==', userId));
-  return onSnapshot(q, (querySnapshot) => {
-    const loadedQuestions: QuizQuestion[] = [];
-    querySnapshot.forEach((doc) => {
-      loadedQuestions.push(doc.data() as QuizQuestion);
+  // Fetch initial data
+  fetchQuizzes(userId).then(callback);
+
+  // Subscribe to changes
+  const channel = supabase.channel(`quizzes_${userId}`);
+  
+  const subscription = channel
+    .on('postgres_changes', { event: '*', schema: 'public', table: TABLE_NAME, filter: `user_id=eq.${userId}` }, async () => {
+      const quizzes = await fetchQuizzes(userId);
+      callback(quizzes);
     });
-    localStorage.setItem(`quizzes_${userId}`, JSON.stringify(loadedQuestions));
-    callback(loadedQuestions);
-  }, (error: any) => {
-    const errorMsg = error?.message || String(error);
-    if (errorMsg.includes('Quota') || errorMsg.includes('quota')) {
-      console.warn("Quizzes subscription: Quota exceeded, using cache.");
-    } else {
-      console.error("Quizzes subscription error:", error);
-    }
-    const cached = localStorage.getItem(`quizzes_${userId}`);
-    if (cached) callback(JSON.parse(cached));
+
+  subscription.subscribe((status) => {
+    console.log(`[Quiz API] Subscription status: ${status} for channel quizzes_${userId}`);
   });
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
 };
 
 const cleanObj = (obj: any) => {
@@ -57,101 +63,160 @@ const cleanObj = (obj: any) => {
 export const saveQuiz = async (userId: string, question: QuizQuestion) => {
   try {
     const payload = cleanObj({
-      ...question,
-      userId: userId,
-      createdAt: (question as any).createdAt || serverTimestamp()
+      id: question.id,
+      user_id: userId,
+      type: question.type,
+      question: question.question,
+      options: question.options,
+      correct_option_index: question.correctOptionIndex,
+      explanation: question.explanation,
+      status: question.status,
+      image: question.image,
+      topic: question.topic,
+      updated_at: new Date().toISOString(),
     });
-    await setDoc(doc(db, 'quizzes', question.id), payload);
+    // Remove complex fields if needed or handle jsonb
+    const { error } = await supabase
+      .from(TABLE_NAME)
+      .upsert(payload);
+
+    if (error) throw error;
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, 'quizzes/' + question.id);
+    console.error("Error in saveQuiz:", error);
   }
 };
 
 export const deleteQuiz = async (id: string) => {
   try {
-    await deleteDoc(doc(db, 'quizzes', id));
+    const { error } = await supabase
+      .from(TABLE_NAME)
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
   } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, 'quizzes/' + id);
+    console.error("Error in deleteQuiz:", error);
   }
 };
 
 export const batchSaveQuizzes = async (userId: string, questions: QuizQuestion[]) => {
   try {
-    const batch = writeBatch(db);
-    questions.forEach(q => {
-      const docRef = doc(db, 'quizzes', q.id);
-      const payload = cleanObj({
-        ...q,
-        userId: userId,
-        createdAt: serverTimestamp()
-      });
-      batch.set(docRef, payload);
-    });
-    await batch.commit();
+    const payloads = questions.map(q => cleanObj({
+      id: q.id,
+      user_id: userId,
+      type: q.type,
+      question: q.question,
+      options: q.options,
+      correct_option_index: q.correctOptionIndex,
+      explanation: q.explanation,
+      status: q.status,
+      image: q.image,
+      topic: q.topic,
+      updated_at: new Date().toISOString(),
+    }));
+    const { error } = await supabase
+      .from(TABLE_NAME)
+      .upsert(payloads);
+    if (error) throw error;
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, 'quizzes');
+    console.error("Error in batchSaveQuizzes:", error);
   }
 };
 
 export const updateUserStats = async (userId: string, stats: { generated: number; sent: number }) => {
   try {
-    const userRef = doc(db, 'users', userId);
-    await updateDoc(userRef, {
-      stats: stats
-    });
-  } catch (error) {
-    // If update fails, try set with merge
-    try {
-      const userRef = doc(db, 'users', userId);
-      await setDoc(userRef, { stats }, { merge: true });
-    } catch (innerError) {
-      handleFirestoreError(innerError, OperationType.WRITE, 'users/' + userId);
+    const { data: profile } = await supabase.from('profiles').select('id').eq('id', userId).maybeSingle();
+    if (!profile) {
+      await supabase.from('profiles').upsert({ id: userId, stats });
+    } else {
+      const { error } = await supabase.from('profiles').update({ stats }).eq('id', userId);
+      if (error) throw error;
     }
+  } catch (error) {
+    console.error("Error in updateUserStats:", error);
+  }
+};
+
+export const incrementUserStats = async (userId: string, deltas: { generated: number; sent: number }) => {
+  try {
+    const { data: profile, error: fetchError } = await supabase
+      .from('profiles')
+      .select('stats, display_name, email, role, photo_url')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (fetchError) throw fetchError;
+
+    const currentStats = profile?.stats || { generated: 0, sent: 0 };
+    const newStats = {
+      generated: (currentStats.generated || 0) + deltas.generated,
+      sent: (currentStats.sent || 0) + deltas.sent
+    };
+
+    if (!profile) {
+      // Profile missing, upsert it
+      const { error: insertError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: userId,
+          stats: newStats
+        });
+      if (insertError) throw insertError;
+    } else {
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ stats: newStats })
+        .eq('id', userId);
+      if (updateError) throw updateError;
+    }
+  } catch (error) {
+    console.error("Error in incrementUserStats:", error);
   }
 };
 
 export const subscribeToUserStats = (userId: string, callback: (stats: { generated: number; sent: number }) => void) => {
-  const userRef = doc(db, 'users', userId);
-  return onSnapshot(userRef, (docSnap) => {
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      if (data.stats) {
+  // Fetch initial
+  supabase
+    .from('profiles')
+    .select('stats')
+    .eq('id', userId)
+    .single()
+    .then(({ data }) => {
+      const localStatsRaw = localStorage.getItem(`stats_${userId}`);
+      let localStats = { generated: 0, sent: 0 };
+      if (localStatsRaw) {
+        try { localStats = JSON.parse(localStatsRaw); } catch(e){}
+      }
+      
+      const remoteStats = data?.stats || { generated: 0, sent: 0 };
+      
+      // Auto-heal missing remote stats if local cache is strictly higher
+      if (localStats.generated > remoteStats.generated || localStats.sent > remoteStats.sent) {
+        const merged = {
+          generated: Math.max(localStats.generated, remoteStats.generated || 0),
+          sent: Math.max(localStats.sent, remoteStats.sent || 0)
+        };
+        console.log(`Auto-healing remote stats up to local cache for ${userId}:`, merged);
+        updateUserStats(userId, merged);
+        callback(merged);
+        localStorage.setItem(`stats_${userId}`, JSON.stringify(merged));
+      } else if (data?.stats) {
         localStorage.setItem(`stats_${userId}`, JSON.stringify(data.stats));
         callback(data.stats);
-      } else {
-        // Document exists but stats field is missing, initialize it from local cache or default to 0
-        const cached = localStorage.getItem(`stats_${userId}`);
-        let parsedStats = { generated: 0, sent: 0 };
-        if (cached) {
-          try {
-            parsedStats = JSON.parse(cached);
-          } catch (e) {}
-        }
-        updateUserStats(userId, parsedStats);
-        callback(parsedStats);
       }
-    } else {
-      // Document does not exist yet (new account, etc.). Check and initialize from local cached stats.
-      const cached = localStorage.getItem(`stats_${userId}`);
-      let parsedStats = { generated: 0, sent: 0 };
-      if (cached) {
-        try {
-          parsedStats = JSON.parse(cached);
-        } catch (e) {}
+    });
+
+  const subscription = supabase
+    .channel(`stats_${userId}`)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` }, payload => {
+      if (payload.new && (payload.new as any).stats) {
+        const stats = (payload.new as any).stats;
+        localStorage.setItem(`stats_${userId}`, JSON.stringify(stats));
+        callback(stats);
       }
-      if (parsedStats.generated > 0 || parsedStats.sent > 0) {
-        updateUserStats(userId, parsedStats);
-      }
-      callback(parsedStats);
-    }
-  }, (error: any) => {
-    const errorMsg = error?.message || String(error);
-    if (errorMsg.includes('Quota') || errorMsg.includes('quota')) {
-      console.warn("Stats subscription: Quota exceeded, using cache.");
-    } else {
-      console.error("Stats subscription error:", error);
-    }
-    const cached = localStorage.getItem(`stats_${userId}`);
-    if (cached) callback(JSON.parse(cached));
-  });
+    })
+    .subscribe();
+
+  return () => {
+    subscription.unsubscribe();
+  };
 };

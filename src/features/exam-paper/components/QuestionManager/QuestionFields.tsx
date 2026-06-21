@@ -15,14 +15,14 @@ export const QuestionFields: React.FC<Props> = ({ editQuestion, setEditQuestion 
         <textarea
           value={editQuestion.question}
           onChange={(e) => setEditQuestion({ ...editQuestion, question: e.target.value })}
-          className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm focus:ring-1 focus:ring-blue-500 outline-none min-h-[80px]"
+          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 outline-none min-h-[80px] transition-all"
         />
       </div>
       <div className="grid grid-cols-1 gap-2">
         <label className="text-[10px] font-bold text-slate-400 uppercase">Options</label>
         {editQuestion.options.map((opt, oIdx) => (
           <div key={opt.label} className="flex gap-2">
-            <span className="w-8 h-8 rounded-full border border-slate-600 flex items-center justify-center text-xs font-bold shrink-0">{opt.label}</span>
+            <span className="w-8 h-8 rounded-full border border-slate-200 bg-white flex items-center justify-center text-xs font-bold shrink-0 text-slate-600">{opt.label}</span>
             <input
               type="text" value={opt.text}
               onChange={(e) => {
@@ -30,7 +30,7 @@ export const QuestionFields: React.FC<Props> = ({ editQuestion, setEditQuestion 
                 newOpts[oIdx] = { ...newOpts[oIdx], text: e.target.value };
                 setEditQuestion({ ...editQuestion, options: newOpts });
               }}
-              className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-1 text-sm focus:ring-1 focus:ring-blue-500 outline-none"
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 outline-none transition-all"
             />
           </div>
         ))}

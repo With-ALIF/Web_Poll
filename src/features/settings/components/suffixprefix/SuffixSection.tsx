@@ -16,6 +16,7 @@ interface SuffixSectionProps {
   activeSuffixId?: string;
   isGlobalMode: boolean;
   canEditSuffix?: boolean;
+  globalDefaultSuffix?: string;
 }
 
 export default function SuffixSection({
@@ -30,7 +31,8 @@ export default function SuffixSection({
   setConfirmDeleteId,
   activeSuffixId,
   isGlobalMode,
-  canEditSuffix = true
+  canEditSuffix = true,
+  globalDefaultSuffix
 }: SuffixSectionProps) {
   return (
     <div className={!user ? "opacity-50 pointer-events-none" : ""}>
@@ -61,9 +63,13 @@ export default function SuffixSection({
           <div>
             <p className="text-sm font-bold text-slate-800">Default Suffix Active</p>
             <p className="text-xs text-slate-500 mt-1 max-w-[250px]">Your administrator has set a default suffix for your account. You cannot modify formatting at this time.</p>
-          </div>
-          <div className="w-full bg-white border border-slate-100 rounded-xl p-3 text-xs font-mono text-indigo-600 break-all select-all">
-            {settings.explanationSuffix}
+            
+            {globalDefaultSuffix && (
+              <div className="mt-4 p-3 bg-white border border-slate-200 rounded-xl text-left">
+                <p className="text-[10px] text-slate-400 uppercase font-bold mb-1 tracking-wider">Current Suffix:</p>
+                <p className="text-xs text-slate-700 italic break-words">{globalDefaultSuffix}</p>
+              </div>
+            )}
           </div>
         </div>
       ) : (

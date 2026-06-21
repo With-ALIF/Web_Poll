@@ -1,8 +1,25 @@
 import { GoogleGenAI } from "@google/genai";
+import { createClient } from "@supabase/supabase-js";
+
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || "";
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 // Load Gemini clients with rotation support
 let aiClients: GoogleGenAI[] = [];
 let currentClientIndex = 0;
+
+// Fallback models that can auto-heal on quota/temporary errors (429/503)
+let activeModels = ["gemini-3.5-flash", "gemini-3.1-flash-lite"];
+
+function demoteModel(modelName: string) {
+  const index = activeModels.indexOf(modelName);
+  if (index !== -1 && activeModels.length > 1) {
+    activeModels.splice(index, 1);
+    activeModels.push(modelName);
+    console.warn(`[Format Note API] Demoted model ${modelName} due to errors. New order: ${activeModels.join(', ')}`);
+  }
+}
 
 function getAIClients(): GoogleGenAI[] {
   if (aiClients.length === 0) {
@@ -74,21 +91,18 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ error: 'Content is required' });
   }
 
-  try {
-    const aiInstance = getAI();
-    
-    const isShortTopic = content.trim().length < 200;
-    
-    let promptSuffix = '';
-    if (isShortTopic) {
-      promptSuffix = `The user input is extremely short (under 200 characters) and is likely a topic name, concept, chapter, or keyword (for example, "${content.trim()}").
+  const isShortTopic = content.trim().length < 200;
+  
+  let promptSuffix = '';
+  if (isShortTopic) {
+    promptSuffix = `The user input is extremely short (under 200 characters) and is likely a topic name, concept, chapter, or keyword (for example, "${content.trim()}").
 Since the user only provided a topic name instead of full study material, you MUST proactively write a highly comprehensive, extremely detailed, and complete college/admission level study note on this topic ("${content.trim()}") from scratch using your own knowledge. 
 Generate extensive background, core definitions, mathematical equations, properties, classifications, units, dimension tables, and classic exam tips so the student gets a fully complete note without requiring pre-written text.`;
-    } else {
-      promptSuffix = `The user has provided a detailed draft or raw notes. Use this raw text as the source of truth, organize it, clean it up, make it comprehensive, and format it beautifully. Ensure you keep all facts, numbers, and detailed theories from the input intact.`;
-    }
+  } else {
+    promptSuffix = `The user has provided a detailed draft or raw notes. Use this raw text as the source of truth, organize it, clean it up, make it comprehensive, and format it beautifully. Ensure you keep all facts, numbers, and detailed theories from the input intact.`;
+  }
 
-    const prompt = `You are an expert Educational & General Note Formatter who generates beautifully structured, extremely informative, and context-rich study notes.
+  const prompt = `You are an expert Educational & General Note Formatter who generates beautifully structured, extremely informative, and context-rich study notes.
 
 User Input Topic/Content:
 """
@@ -111,15 +125,71 @@ Formatting & Style Rules:
 6. **Linguistic Tone**: Keep the language exactly as requested (usually Bengali mixed with core English terms in parentheses, e.g., "ভৌত রাশি (Physical Quantity)"). Keep a warm, scholastic, and highly helpful tone.
 7. **No Meta Comments**: Avoid any introductory or closing statements (like "Here is the note:"). Output ONLY the direct markdown notes itself.`;
 
-    const response = await aiInstance.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: prompt,
-    });
+  const clients = getAIClients();
+  let lastError: any = null;
+  let formatted = "";
+  
+  const retriesCount = 5;
+  let modelAttempt = 0;
 
-    const formatted = response.text || "";
-    return res.status(200).json({ formattedNote: formatted });
-  } catch (error: any) {
-    console.error("Gemini Note Formatting Error:", error);
-    return res.status(500).json({ error: error.message || 'Failed to generate note using Gemini.' });
+  for (let attempt = 0; attempt <= retriesCount; attempt++) {
+    const activeIndex = (currentClientIndex + attempt) % Math.max(1, clients.length);
+    const aiInstance = clients[activeIndex];
+    const currentModel = activeModels[0];
+
+    try {
+      console.log(`[Note Generation] Temporary Attempt ${attempt}: Using key index ${activeIndex + 1} and model ${currentModel}`);
+      const interaction = await aiInstance.interactions.create({
+        model: currentModel,
+        input: prompt,
+      });
+
+      const lastStep = interaction.steps[interaction.steps.length - 1];
+      if (lastStep && lastStep.type === 'model_output') {
+        const textContent = lastStep.content?.find(c => c.type === 'text');
+        if (textContent) {
+           formatted = textContent.text;
+        }
+      }
+
+      if (!formatted) throw new Error("AI returned empty output");
+
+      // Update global index to the next one to distribute load gracefully next time
+      currentClientIndex = (activeIndex + 1) % Math.max(1, clients.length);
+      console.log(`[Note Generation] Successfully generated formatted note using key index ${activeIndex + 1}`);
+      break;
+    } catch (error: any) {
+      lastError = error;
+      const errMsg = error?.message || String(error);
+      const isRateLimit = errMsg.includes('429') || errMsg.includes('Quota exceeded');
+      const isServiceUnavailable = errMsg.includes('503') || errMsg.includes('temporary') || errMsg.includes('high demand') || errMsg.includes('Service Unavailable');
+      
+      if (isRateLimit || isServiceUnavailable) {
+        demoteModel(currentModel);
+      }
+
+      if (attempt < retriesCount) {
+        console.warn(`[Note Generation] Attempt ${attempt} with model ${currentModel} on key index ${activeIndex + 1} failed (will retry):`, error.message || error);
+        modelAttempt++;
+        console.log(`[Note Generation] Rate limited or server busy. Waiting 1.5s then trying next key/model...`);
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      } else {
+        console.error(`[Note Generation] All attempts failed. Final error with model ${currentModel} on key index ${activeIndex + 1}:`, error.message || error);
+      }
+    }
   }
+
+  if (!formatted && lastError) {
+    const errorMsg = lastError?.message || String(lastError);
+    if (errorMsg.includes('suspended') || errorMsg.includes('PERMISSION_DENIED') || errorMsg.includes('403')) {
+      return res.status(403).json({
+        error: `Gemini formatting failed check. All API keys tried (${clients.length} loaded). Final error: API Key is suspended or permissions were denied. Please update your key settings.`
+      });
+    }
+    return res.status(500).json({ 
+      error: `Failed to generate note after trying all available Gemini keys. Last error: ${errorMsg}` 
+    });
+  }
+
+  return res.status(200).json({ formattedNote: formatted });
 }

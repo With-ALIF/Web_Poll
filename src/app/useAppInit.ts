@@ -3,18 +3,20 @@ import { useQuiz } from '../features/quiz/hooks/useQuiz';
 import { useTelegram } from '../features/quiz/hooks/useTelegram';
 import { useMemo } from 'react';
 
-export const FIXED_BOT_TOKEN = "8783681142:AAEtAX66CEYfML0gx3ojJO1fLY01kPJORH4";
+export const FIXED_BOT_TOKEN = "8783681142:AAGcPnAIVZ6L4ivQQFqNC2hFIq0uZmtC51U";
 
 export function useAppInit() {
   const settings = useSettings();
   const quiz = useQuiz();
+
+  const activeBotToken = settings.settings.botToken?.trim() || FIXED_BOT_TOKEN;
 
   const telegram = useTelegram({
     settings: settings.settings,
     questions: quiz.questions,
     setQuestions: quiz.setQuestions,
     setStats: quiz.setStats,
-    botToken: FIXED_BOT_TOKEN
+    botToken: activeBotToken
   });
 
   const pendingQuestions = useMemo(() => quiz.questions.filter(q => q.status !== 'sent'), [quiz.questions]);
@@ -26,6 +28,6 @@ export function useAppInit() {
     telegram,
     pendingQuestions,
     sentQuestions,
-    botToken: FIXED_BOT_TOKEN
-  }), [settings, quiz, telegram, pendingQuestions, sentQuestions]);
+    botToken: activeBotToken
+  }), [settings, quiz, telegram, pendingQuestions, sentQuestions, activeBotToken]);
 }
