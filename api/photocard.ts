@@ -146,7 +146,7 @@ Question: ${question}`,
         console.warn(`[Photocard API] Attempt ${attempt} failed with model ${currentModel} (will retry):`, error.message || error);
         rotateKey();
         modelAttempt++;
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        await new Promise(resolve => setTimeout(resolve, 500));
         continue;
       }
 

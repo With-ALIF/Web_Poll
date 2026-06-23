@@ -10,8 +10,8 @@ let aiClients: GoogleGenAI[] = [];
 let currentClientIndex = 0;
 
 // Module-level fallback model lists that auto-heal if a model gets exhausted (429/503)
-let activeTextModels = ["gemini-3.5-flash", "gemini-3.1-flash-lite"];
-let activeImageModels = ["gemini-3.5-flash", "gemini-3.1-flash-lite"];
+let activeTextModels = ["gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-flash-latest"];
+let activeImageModels = ["gemini-3.1-flash-lite", "gemini-3.1-flash-image", "gemini-3.5-flash"];
 
 function demoteModel(modelList: string[], modelName: string, serviceName: string) {
   const index = modelList.indexOf(modelName);
@@ -196,7 +196,7 @@ ${text}`,
         console.warn(`[Quiz API] Attempt ${attempt} with model ${currentModel} failed (will retry):`, error.message || error);
         rotateKey();
         modelAttempt++;
-        const waitTime = Math.pow(2, attempt % 3) * 1500;
+        const waitTime = Math.pow(1.3, attempt % 3) * 400;
         await delay(waitTime);
         continue;
       }
@@ -311,7 +311,7 @@ You MUST output a 0-indexed correctOptionIndex (e.g., 0, 1, 2, 3).`
         console.warn(`[Quiz API] Image Attempt ${attempt} with model ${currentModel} failed (will retry):`, error.message || error);
         rotateKey();
         modelAttempt++;
-        const waitTime = Math.pow(2, attempt % 3) * 1500;
+        const waitTime = Math.pow(1.3, attempt % 3) * 400;
         await delay(waitTime);
         continue;
       }

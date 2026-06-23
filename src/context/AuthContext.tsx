@@ -33,6 +33,89 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const currentUser = session?.user || null;
+      console.log("Global Auth state changed:", event, currentUser ? `User: ${currentUser.id}` : "No user");
+      setUser(currentUser);
+      
+      if (!currentUser) {
+        setProfile(null);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Separate effect for profile and its subscription
+  useEffect(() => {
+    if (!user) return;
+
+    let profileSubscription: any = null;
+
+    const setupProfile = async () => {
+      try {
+        setLoading(true);
+        // Ensure profile exists
+        await createUserProfile(user);
+        
+        // Fetch profile
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        if (profileError) throw profileError;
+        
+        if (profileData) {
+          const userPerms = profileData.permissions || await getUserPermissionsConfig(user.id) || [];
+          const enrichedProfile = { ...profileData, permissions: userPerms };
+          localStorage.setItem(`profile_${user.id}`, JSON.stringify(enrichedProfile));
+          setProfile(enrichedProfile);
+        }
+      } catch (profileErr) {
+        console.error("Error setting up session profile:", profileErr);
+        const cached = localStorage.getItem(`profile_${user.id}`);
+        if (cached) setProfile(JSON.parse(cached));
+      } finally {
+        setLoading(false);
+      }
+
+      // Subscribe to profile changes
+      try {
+        profileSubscription = supabase
+          .channel(`profile_${user.id}`)
+          .on('postgres_changes', { 
+            event: 'UPDATE', 
+            schema: 'public', 
+            table: 'profiles', 
+            filter: `id=eq.${user.id}` 
+          }, async payload => {
+            if (payload.new) {
+              const userPerms = (payload.new as any).permissions || await getUserPermissionsConfig(user.id) || [];
+              setProfile({ ...(payload.new as any), permissions: userPerms });
+            }
+          })
+          .subscribe();
+      } catch (subErr) {
+        console.warn("Could not subscribe to live profile changes:", subErr);
+      }
+    };
+
+    setupProfile();
+
+    return () => {
+      if (profileSubscription) {
+        supabase.removeChannel(profileSubscription);
+      }
+    };
+  }, [user?.id]);
+
+  useEffect(() => {
     // 1. Fetch App Config (Real-time listener for system_config)
     const fetchConfig = async () => {
       try {
@@ -72,81 +155,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.warn("Could not subscribe to configuration changes.", err);
     }
 
-    console.log("Setting up global Supabase auth listener...");
-
-    let authListener: any = null;
-    try {
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-        const currentUser = session?.user || null;
-        console.log("Global Auth state changed:", event, currentUser ? `User: ${currentUser.id}` : "No user");
-        setUser(currentUser);
-        
-        if (currentUser) {
-          try {
-            // Ensure profile exists
-            await createUserProfile(currentUser);
-            
-            // Fetch profile
-            const { data: profileData, error: profileError } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', currentUser.id)
-              .single();
-            
-            if (profileError) throw profileError;
-            
-            if (profileData) {
-              const userPerms = profileData.permissions || await getUserPermissionsConfig(currentUser.id) || [];
-              const enrichedProfile = { ...profileData, permissions: userPerms };
-              localStorage.setItem(`profile_${currentUser.id}`, JSON.stringify(enrichedProfile));
-              setProfile(enrichedProfile);
-            }
-          } catch (profileErr) {
-            console.error("Error setting up session profile:", profileErr);
-            // Fallback load from cache
-            const cached = localStorage.getItem(`profile_${currentUser.id}`);
-            if (cached) setProfile(JSON.parse(cached));
-          }
-
-          // Subscribe to profile changes
-          let profileSubscription: any = null;
-          try {
-            profileSubscription = supabase
-              .channel(`profile_${currentUser.id}`)
-              .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${currentUser.id}` }, async payload => {
-                if (payload.new) {
-                  const userPerms = payload.new.permissions || await getUserPermissionsConfig(currentUser.id) || [];
-                  setProfile({ ...payload.new, permissions: userPerms });
-                }
-              })
-              .subscribe();
-          } catch (subErr) {
-            console.warn("Could not subscribe to live profile changes:", subErr);
-          }
-
-          setLoading(false);
-          return () => {
-            if (profileSubscription) {
-              profileSubscription.unsubscribe();
-            }
-          };
-        } else {
-          setProfile(null);
-          setLoading(false);
-        }
-      });
-      authListener = subscription;
-    } catch (authErr) {
-      console.error("Critical error setting up auth state listener:", authErr);
-      setLoading(false);
-    }
-
     return () => {
       if (configSubscription) {
-        configSubscription.unsubscribe();
-      }
-      if (authListener) {
-        authListener.unsubscribe();
+        supabase.removeChannel(configSubscription);
       }
     };
   }, []);

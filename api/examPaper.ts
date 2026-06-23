@@ -9,12 +9,11 @@ interface ExamPaperSettings {
   includeExplanation: boolean;
 }
 
-// Model Fallback List - Using standard names from the Gemini API skill
+// Model Fallback List - Using standard high-performance names
 const ACTIVE_MODELS = [
-  "gemini-3.5-flash", 
   "gemini-3.1-flash-lite",
-  "gemini-flash-latest",
-  "gemini-3.1-pro-preview"
+  "gemini-3.5-flash", 
+  "gemini-flash-latest"
 ];
 
 // Load Gemini clients with rotation support
@@ -224,8 +223,8 @@ export default async function handler(req: any, res: any) {
         }
 
         rotateKey();
-        // Exponential backoff
-        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+        // Faster backoff for low latency
+        await new Promise(r => setTimeout(r, 400 * Math.pow(1.3, attempt)));
       }
     }
   } catch (error: any) {

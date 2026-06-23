@@ -10,7 +10,7 @@ let aiClients: GoogleGenAI[] = [];
 let currentClientIndex = 0;
 
 // Fallback models that can auto-heal on quota/temporary errors (429/503)
-let activeModels = ["gemini-3.5-flash", "gemini-3.1-flash-lite"];
+let activeModels = ["gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-flash-latest"];
 
 function demoteModel(modelName: string) {
   const index = activeModels.indexOf(modelName);
@@ -171,8 +171,8 @@ Formatting & Style Rules:
       if (attempt < retriesCount) {
         console.warn(`[Note Generation] Attempt ${attempt} with model ${currentModel} on key index ${activeIndex + 1} failed (will retry):`, error.message || error);
         modelAttempt++;
-        console.log(`[Note Generation] Rate limited or server busy. Waiting 1.5s then trying next key/model...`);
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        console.log(`[Note Generation] Rate limited or server busy. Waiting 500ms then trying next key/model...`);
+        await new Promise(resolve => setTimeout(resolve, 500));
       } else {
         console.error(`[Note Generation] All attempts failed. Final error with model ${currentModel} on key index ${activeIndex + 1}:`, error.message || error);
       }
