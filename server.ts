@@ -516,7 +516,10 @@ async function startServer() {
           photoURL: profile.photo_url || u.user_metadata?.avatar_url || '',
           role: profile.role || 'user',
           permissions: profile.permissions || [],
-          stats: profile.stats || { generated: 0, sent: 0 },
+          stats: { 
+            generated: profile.total_generated || 0, 
+            sent: profile.total_sent || 0 
+          },
           createdAt: u.created_at ? { seconds: Math.floor(new Date(u.created_at).getTime() / 1000) } : { seconds: 0 }
         };
       });

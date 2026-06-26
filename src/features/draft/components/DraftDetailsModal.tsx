@@ -22,38 +22,30 @@ export default function DraftDetailsModal({ draft, onClose }: DraftDetailsModalP
             <div className="mb-4">
               <img 
                 src={draft.image} 
-                alt="Header visual" 
+                alt="Poll visual" 
                 className="w-full rounded-xl border border-slate-200 object-contain max-h-72"
               />
             </div>
           )}
-          {draft.type !== 'header' ? (
-            <>
-              <div>
-                <h3 className="font-semibold text-slate-700 mb-2">Options:</h3>
-                <ul className="space-y-2">
-                  {draft.options.map((option, index) => (
-                    <li 
-                      key={index} 
-                      className={`p-3 rounded-lg text-slate-700 ${
-                        index === draft.correctOptionIndex ? 'bg-green-50 border border-green-200' : 'bg-slate-50'
-                      }`}
-                    >
-                      {option} {index === draft.correctOptionIndex && <span className="text-green-600 font-bold">(Correct)</span>}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              {draft.explanation && (
-                <div>
-                  <h3 className="font-semibold text-slate-700">Explanation:</h3>
-                  <p className="text-slate-600 mt-1 bg-slate-50 p-3 rounded-lg">{draft.explanation}</p>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-              <p className="text-emerald-800 text-sm font-medium">This is a Header Post. It will be sent as an image with the caption, or as a direct text message if no image is attached.</p>
+          <div>
+            <h3 className="font-semibold text-slate-700 mb-2">Options:</h3>
+            <ul className="space-y-2">
+              {draft.options.map((option, index) => (
+                <li 
+                  key={index} 
+                  className={`p-3 rounded-lg text-slate-700 ${
+                    index === draft.correctOptionIndex ? 'bg-green-50 border border-green-200' : 'bg-slate-50'
+                  }`}
+                >
+                  {option} {index === draft.correctOptionIndex && <span className="text-green-600 font-bold">(Correct)</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+          {draft.explanation && (
+            <div>
+              <h3 className="font-semibold text-slate-700">Explanation:</h3>
+              <p className="text-slate-600 mt-1 bg-slate-50 p-3 rounded-lg">{draft.explanation}</p>
             </div>
           )}
         </div>

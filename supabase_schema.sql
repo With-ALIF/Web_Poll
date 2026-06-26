@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   photo_url TEXT,
   role TEXT DEFAULT 'user' CHECK (role IN ('admin', 'user')),
   permissions JSONB DEFAULT '[]'::jsonb,
-  stats JSONB DEFAULT '{"generated": 0, "sent": 0}'::jsonb,
+  total_generated INT DEFAULT 0,
+  total_sent INT DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -114,17 +115,21 @@ CREATE POLICY "Users can manage their own quizzes." ON public.quizzes
   FOR ALL USING (auth.uid() = user_id);
 
 -- NEW: Poll Questions table for individual questions
-CREATE TABLE IF NOT EXISTS public.poll_questions (
-  id TEXT PRIMARY KEY,
+DROP TABLE IF EXISTS public.poll_questions CASCADE;
+CREATE TABLE public.poll_questions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
-  type TEXT,
   question TEXT NOT NULL,
-  options JSONB,
+  option_a TEXT,
+  option_b TEXT,
+  option_c TEXT,
+  option_d TEXT,
   correct_option_index INT,
   explanation TEXT,
+  topic TEXT,
   status TEXT,
   image TEXT,
-  topic TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -132,15 +137,14 @@ ALTER TABLE public.poll_questions ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can manage their own poll questions." ON public.poll_questions;
 CREATE POLICY "Users can manage their own poll questions." ON public.poll_questions
-  FOR ALL USING (auth.uid() = user_id);
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 -- Settings table
 DROP TABLE IF EXISTS public.settings CASCADE;
 
 CREATE TABLE public.settings (
   user_id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
-  "botToken" TEXT,
-  "chatId" TEXT,
   channels JSONB DEFAULT '[]'::jsonb,
   "activeChannelId" TEXT,
   "selectedChannelIds" JSONB DEFAULT '[]'::jsonb,
@@ -163,16 +167,18 @@ CREATE POLICY "Users can manage their own settings." ON public.settings
 -- Drafts table
 DROP TABLE IF EXISTS public.drafts CASCADE;
 CREATE TABLE public.drafts (
-  id TEXT PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
-  type TEXT,
   question TEXT NOT NULL,
-  options JSONB,
+  option_a TEXT,
+  option_b TEXT,
+  option_c TEXT,
+  option_d TEXT,
   correct_option_index INT,
   explanation TEXT,
+  topic TEXT,
   status TEXT DEFAULT 'draft',
   image TEXT,
-  topic TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -181,12 +187,15 @@ ALTER TABLE public.drafts ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can manage their own drafts." ON public.drafts;
 CREATE POLICY "Users can manage their own drafts." ON public.drafts
-  FOR ALL USING (auth.uid() = user_id);
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 -- System stats table
 CREATE TABLE IF NOT EXISTS public.system_stats (
   key TEXT PRIMARY KEY,
-  value JSONB,
+  user_count INT DEFAULT 0,
+  total_polls_sent INT DEFAULT 0,
+  total_polls_generated INT DEFAULT 0,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 

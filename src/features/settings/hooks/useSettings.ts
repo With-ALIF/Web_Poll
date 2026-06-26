@@ -10,7 +10,6 @@ export function useSettings() {
   const [isLoading, setIsLoading] = useState(true);
   const [globalDefaultSuffix, setGlobalDefaultSuffix] = useState(DEFAULT_SUFFIX);
   const [settings, setSettings] = useState<TelegramSettings>({ 
-    botToken: '', 
     channels: [],
     activeChannelId: '',
     questionPrefix: '',
@@ -30,7 +29,7 @@ export function useSettings() {
       if (user) {
         // Load from Database
         try {
-          const data = await fetchSettings(user.uid);
+          const data = await fetchSettings(user.id);
           if (data) {
             // Apply default suffix if missing or if user cannot edit
             let finalSuffix = currentDefault;
@@ -39,7 +38,6 @@ export function useSettings() {
             }
 
             const finalizedData = {
-              botToken: '', 
               channels: [],
               activeChannelId: '',
               questionPrefix: '',
@@ -73,7 +71,6 @@ export function useSettings() {
       if (savedSettings) {
         try {
           const parsed = {
-            botToken: '', 
             channels: [],
             activeChannelId: '',
             questionPrefix: '',
@@ -82,13 +79,6 @@ export function useSettings() {
             suffixes: [],
             ...JSON.parse(savedSettings)
           };
-          
-          // Migration from legacy chatId to channels
-          if (parsed.chatId && (!parsed.channels || parsed.channels.length === 0)) {
-            parsed.channels = [{ id: parsed.chatId, name: parsed.chatId, type: 'channel' }];
-            parsed.activeChannelId = parsed.chatId;
-            delete parsed.chatId;
-          }
           
           if (!parsed.channels) parsed.channels = [];
           if (!parsed.activeChannelId && parsed.channels.length > 0) {
@@ -107,7 +97,7 @@ export function useSettings() {
           
           // If user is logged in but didn't have Database settings, save them now
           if (user) {
-             saveSettingsToBackend(user.uid, parsed);
+             saveSettingsToBackend(user.id, parsed);
           }
         } catch (e) {
           console.error("Failed to parse settings", e);
@@ -119,7 +109,7 @@ export function useSettings() {
     };
 
     loadSettings();
-  }, [user?.uid, appConfig, canEditSuffix]);
+  }, [user?.id, appConfig, canEditSuffix]);
 
   const effectiveSettings = useMemo(() => {
     if (canEditSuffix) return settings;
@@ -136,7 +126,7 @@ export function useSettings() {
     setSettings(settingsToSave);
     localStorage.setItem('telegramQuizSettings', JSON.stringify(settingsToSave));
     if (user) {
-      saveSettingsToBackend(user.uid, settingsToSave);
+      saveSettingsToBackend(user.id, settingsToSave);
     }
   }, [user, canEditSuffix, globalDefaultSuffix]);
 

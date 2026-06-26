@@ -1,5 +1,6 @@
-import React from 'react';
-import { Trash2, Send, CheckSquare, Square, FileSpreadsheet } from 'lucide-react';
+import React, { useState } from 'react';
+import { Trash2, Send, CheckSquare, Square, FileSpreadsheet, Tag } from 'lucide-react';
+import { QUIZ_TOPICS } from '../../quiz/constants';
 
 interface DraftToolbarProps {
   selectedCount: number;
@@ -9,6 +10,7 @@ interface DraftToolbarProps {
   onDownloadCsv: () => void;
   onToggleSelectAll: () => void;
   isAllSelected: boolean;
+  onSetTopic?: (topic: string) => void;
 }
 
 export default function DraftToolbar({
@@ -18,13 +20,16 @@ export default function DraftToolbar({
   onSendSelected,
   onDownloadCsv,
   onToggleSelectAll,
-  isAllSelected
+  isAllSelected,
+  onSetTopic
 }: DraftToolbarProps) {
+  const [bulkTopic, setBulkTopic] = useState('');
+
   if (totalCount === 0) return null;
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-4 mb-6 shadow-sm">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <button
             onClick={onToggleSelectAll}
@@ -43,10 +48,38 @@ export default function DraftToolbar({
             </span>
           )}
         </div>
+
+        {selectedCount > 0 && onSetTopic && (
+          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 w-full sm:w-auto">
+            <Tag className="w-3.5 h-3.5 text-slate-400" />
+            <select
+              value={bulkTopic}
+              onChange={(e) => setBulkTopic(e.target.value)}
+              className="bg-transparent text-sm outline-none w-32 flex-1 cursor-pointer font-semibold text-slate-700"
+            >
+              <option value="">Set Topic...</option>
+              {QUIZ_TOPICS.map(topic => (
+                <option key={topic} value={topic}>{topic}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => {
+                if (bulkTopic) {
+                  onSetTopic(bulkTopic);
+                  setBulkTopic('');
+                }
+              }}
+              disabled={!bulkTopic}
+              className="text-[10px] font-bold uppercase tracking-wider bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1 rounded-md disabled:opacity-50 transition-all shadow-sm shadow-indigo-100"
+            >
+              Apply
+            </button>
+          </div>
+        )}
       </div>
 
       {selectedCount > 0 && (
-        <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-slate-100">
+        <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-slate-100 mt-4">
           <button
             onClick={onSendSelected}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"

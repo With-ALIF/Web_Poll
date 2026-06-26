@@ -1,5 +1,6 @@
 import React from 'react';
 import { QuizQuestion } from '../../../../types';
+import { QUIZ_TOPICS } from '../../constants';
 
 interface QuestionEditFormProps {
   editingQuestion: QuizQuestion;
@@ -20,14 +21,17 @@ export default function QuestionEditForm({ editingQuestion, setEditingQuestion }
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-slate-500 mb-1">Topic / Subject (Optional)</label>
-        <input
-          type="text"
+        <label className="block text-xs font-medium text-slate-500 mb-1">Topic / Subject (Compulsory)</label>
+        <select
           value={editingQuestion.topic || ''}
           onChange={(e) => setEditingQuestion({...editingQuestion, topic: e.target.value})}
-          placeholder="e.g. History, Science, Chapter 1"
-          className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-        />
+          className="w-full p-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer"
+        >
+          <option value="">Select Topic...</option>
+          {QUIZ_TOPICS.map(topic => (
+            <option key={topic} value={topic}>{topic}</option>
+          ))}
+        </select>
       </div>
 
       <div>

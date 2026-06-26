@@ -33,7 +33,7 @@ export function useTelegram({ settings, questions, setQuestions, setStats, botTo
   const globalDefaultSuffix = appConfig?.defaultSuffix;
 
   const handleSendToTelegram = useCallback(async (id: string, customQuestion?: QuizQuestion) => {
-    const target = (user && settings.selectedChannelIds?.length) ? settings.selectedChannelIds : [settings.activeChannelId || settings.chatId || ''];
+    const target = (user && settings.selectedChannelIds?.length) ? settings.selectedChannelIds : [settings.activeChannelId || ''];
     if (target.length === 1 && !target[0]) {
       setSendError('Please configure your Telegram Chat ID in settings.');
       navigate('/settings');
@@ -45,6 +45,12 @@ export function useTelegram({ settings, questions, setQuestions, setStats, botTo
     }
     const qToSend = customQuestion || questions.find(q => q.id === id);
     if (!qToSend) return;
+
+    if (!qToSend.topic) {
+      setSendError('পোল পাঠানোর আগে অবশ্যই একটি বিষয় (Topic) নির্বাচন করতে হবে।');
+      return;
+    }
+
     try {
       for (const chatId of target) {
         if (!chatId) continue;
@@ -58,8 +64,8 @@ export function useTelegram({ settings, questions, setQuestions, setStats, botTo
       setStats(p => {
         const s = { ...p, sent: p.sent + 1 };
         if (user) {
-          localStorage.setItem(`stats_${user.uid}`, JSON.stringify(s));
-          incrementUserStats(user.uid, { generated: 0, sent: 1 });
+          localStorage.setItem(`stats_${user.id}`, JSON.stringify(s));
+          incrementUserStats(user.id, { generated: 0, sent: 1 });
         } else {
           localStorage.setItem('quizStats', JSON.stringify(s));
         }
@@ -72,16 +78,18 @@ export function useTelegram({ settings, questions, setQuestions, setStats, botTo
       }
       throw err;
     }
-  }, [user?.uid, settings, questions, botToken, navigate, setQuestions, setStats, canEditSuffix, globalDefaultSuffix]);
+  }, [user?.id, settings, questions, botToken, navigate, setQuestions, setStats, canEditSuffix, globalDefaultSuffix]);
 
   const handleSendAll = useCallback(async (qs: QuizQuestion[]) => {
-    const sortedQs = [...qs].sort((a, b) => {
-      if (a.type === 'header' && b.type !== 'header') return -1;
-      if (a.type !== 'header' && b.type === 'header') return 1;
-      return 0;
-    });
+    const sortedQs = [...qs];
     const sendableQs = sortedQs.filter(q => q.status !== 'sending');
     if (sendableQs.length === 0) return;
+
+    const missingTopic = sendableQs.find(q => !q.topic);
+    if (missingTopic) {
+      setSendError('পোল পাঠানোর আগে সবগুলো পোল নির্বাচন করে বিষয় (Topic) সেট করুন।');
+      return;
+    }
 
     setIsBulkSending(true);
     setIsStopping(false);
@@ -120,13 +128,14 @@ export function useTelegram({ settings, questions, setQuestions, setStats, botTo
 
   const handleSendSelected = useCallback(async (ids: string[]) => {
     const selectedQs = questions
-      .filter(q => ids.includes(q.id) && q.status !== 'sending')
-      .sort((a, b) => {
-        if (a.type === 'header' && b.type !== 'header') return -1;
-        if (a.type !== 'header' && b.type === 'header') return 1;
-        return 0;
-      });
+      .filter(q => ids.includes(q.id) && q.status !== 'sending');
     if (selectedQs.length === 0) return;
+
+    const missingTopic = selectedQs.find(q => !q.topic);
+    if (missingTopic) {
+      setSendError('পোল পাঠানোর আগে সবগুলো পোল নির্বাচন করে বিষয় (Topic) সেট করুন।');
+      return;
+    }
 
     setIsBulkSending(true);
     setIsStopping(false);

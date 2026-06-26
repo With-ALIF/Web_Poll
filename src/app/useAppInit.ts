@@ -2,14 +2,13 @@ import { useSettings } from '../features/settings/hooks/useSettings';
 import { useQuiz } from '../features/quiz/hooks/useQuiz';
 import { useTelegram } from '../features/quiz/hooks/useTelegram';
 import { useMemo } from 'react';
-
-export const FIXED_BOT_TOKEN = "8783681142:AAGcPnAIVZ6L4ivQQFqNC2hFIq0uZmtC51U";
+import { FIXED_BOT_TOKEN } from '../features/quiz/constants';
 
 export function useAppInit() {
   const settings = useSettings();
   const quiz = useQuiz();
 
-  const activeBotToken = settings.settings.botToken?.trim() || FIXED_BOT_TOKEN;
+  const activeBotToken = FIXED_BOT_TOKEN;
 
   const telegram = useTelegram({
     settings: settings.settings,

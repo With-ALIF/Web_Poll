@@ -4,7 +4,7 @@ import { useSettings } from '../../settings/hooks/useSettings';
 import { useNoteState } from './useNoteState';
 import { useNoteActions } from './useNoteActions';
 import { useNotePDF } from './useNotePDF';
-import { FIXED_BOT_TOKEN } from '../../../app/useAppInit';
+import { FIXED_BOT_TOKEN } from '../../quiz/constants';
 
 export function useNotePage() {
   const { user } = useAuth();

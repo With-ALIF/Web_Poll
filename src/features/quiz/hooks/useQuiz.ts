@@ -11,9 +11,9 @@ export function useQuiz() {
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [stats, setStats] = useState<{ generated: number; sent: number }>(() => {
     // Check if there is a cached uid
-    const lastUid = localStorage.getItem('last_logged_in_uid');
-    if (lastUid) {
-      const cached = localStorage.getItem(`stats_${lastUid}`);
+    const lastId = localStorage.getItem('last_logged_in_id');
+    if (lastId) {
+      const cached = localStorage.getItem(`stats_${lastId}`);
       if (cached) {
         try {
           return JSON.parse(cached);
@@ -31,16 +31,16 @@ export function useQuiz() {
 
   // Load stats from cache as soon as user is available
   useEffect(() => {
-    if (user?.uid) {
-      localStorage.setItem('last_logged_in_uid', user.uid);
-      const cached = localStorage.getItem(`stats_${user.uid}`);
+    if (user?.id) {
+      localStorage.setItem('last_logged_in_id', user.id);
+      const cached = localStorage.getItem(`stats_${user.id}`);
       if (cached) {
         try {
           setStats(JSON.parse(cached));
         } catch (e) {}
       }
     }
-  }, [user?.uid]);
+  }, [user?.id]);
 
   // Edit states
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);

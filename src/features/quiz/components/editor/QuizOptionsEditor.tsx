@@ -57,7 +57,7 @@ export default function QuizOptionsEditor({ questionId, editingQuestion, setEdit
           </div>
         ))}
       </div>
-      {editingQuestion.options.length < 6 && (
+      {editingQuestion.options.length < 4 && (
         <button
           onClick={() => {
             setEditingQuestion({

@@ -50,7 +50,10 @@ export default async function handler(req: any, res: any) {
 
     const mergedUsers = authUsers.map(u => {
       const dbProfile = profileMap[u.id] || {};
-      const stats = dbProfile.stats || { generated: 0, sent: 0 };
+      const stats = {
+        generated: dbProfile.total_generated || 0,
+        sent: dbProfile.total_sent || 0
+      };
       
       return {
         ...u,

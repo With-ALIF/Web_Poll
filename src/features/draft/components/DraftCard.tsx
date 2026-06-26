@@ -33,14 +33,13 @@ const DraftCard: React.FC<DraftCardProps> = ({ draft, onSend, onDelete, isSelect
       </button>
 
       <div className="pr-8">
-        {draft.topic && (
+        {draft.topic ? (
           <span className="inline-block bg-indigo-50 text-indigo-600 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md mb-2 border border-indigo-100">
             {draft.topic}
           </span>
-        )}
-        {draft.type === 'header' && (
-          <span className="inline-block bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md mb-2 border border-emerald-100 ml-2">
-            Header
+        ) : (
+          <span className="inline-block bg-red-50 text-red-600 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md mb-2 border border-red-100 animate-pulse">
+            No Topic
           </span>
         )}
         <h3 className="font-semibold text-slate-900 mb-2 line-clamp-2">{draft.question}</h3>
@@ -48,7 +47,7 @@ const DraftCard: React.FC<DraftCardProps> = ({ draft, onSend, onDelete, isSelect
       
       <div className="flex items-center justify-between mt-4">
         <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
-          {draft.type === 'header' ? 'Header Post' : `${draft.options.length} Options`}
+          {draft.options.length} Options
         </span>
         <div className="flex items-center gap-1">
           <button 

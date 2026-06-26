@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
-import { InstallPrompt } from '../components/InstallPrompt';
 import AppRoutes from './AppRoutes';
 import { useApp } from '../context/AppContext';
 import { useAuth } from '../features/auth/hooks/useAuth';
@@ -25,8 +24,6 @@ export default function App() {
       <MainLayout>
         <AppRoutes appState={appState} />
       </MainLayout>
-
-      <InstallPrompt />
     </div>
   );
 }

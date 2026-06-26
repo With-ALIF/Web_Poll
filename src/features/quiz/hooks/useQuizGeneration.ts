@@ -26,21 +26,21 @@ export function useQuizGeneration(
   const processGeneratedQuestions = async (generated: any[]) => {
     const newQuestions: QuizQuestion[] = generated.map((q: any) => ({
       ...q,
-      id: Math.random().toString(36).substring(7),
+      id: crypto.randomUUID(),
       status: 'pending'
     }));
     
     setQuestions(prev => [...newQuestions, ...prev]);
     
     if (user) {
-      await batchSaveQuizzes(user.uid, newQuestions);
+      await batchSaveQuizzes(user.id, newQuestions);
     }
 
     setStats(prev => {
       const newStats = { ...prev, generated: prev.generated + generated.length };
       if (user) {
-        localStorage.setItem(`stats_${user.uid}`, JSON.stringify(newStats));
-        incrementUserStats(user.uid, { generated: generated.length, sent: 0 });
+        localStorage.setItem(`stats_${user.id}`, JSON.stringify(newStats));
+        incrementUserStats(user.id, { generated: generated.length, sent: 0 });
       } else {
         localStorage.setItem('quizStats', JSON.stringify(newStats));
       }

@@ -1,7 +1,8 @@
 import { QuizQuestion, TelegramSettings } from "../../../types";
+import { FIXED_BOT_TOKEN } from "../constants";
 
 export async function getChatDetails(chatId: string, botToken: string) {
-  const cleanToken = botToken.trim().replace(/^bot/i, '');
+  const cleanToken = (botToken || FIXED_BOT_TOKEN).trim().replace(/^bot/i, '');
   const cleanChatId = chatId.trim();
 
   if (!cleanChatId || !cleanToken) return null;
@@ -30,8 +31,8 @@ export async function sendQuizToTelegram(
   targetChatId?: string
 ): Promise<boolean> {
   // Sanitize inputs to remove accidental spaces or 'bot' prefix
-  const cleanToken = settings.botToken.trim().replace(/^bot/i, '');
-  const cleanChatId = (targetChatId || settings.activeChannelId || settings.chatId || '').trim();
+  const cleanToken = FIXED_BOT_TOKEN.trim().replace(/^bot/i, '');
+  const cleanChatId = (targetChatId || settings.activeChannelId || '').trim();
 
   let replyToMessageId: number | undefined;
 
@@ -178,8 +179,8 @@ export async function sendNoteToTelegram(
   settings: TelegramSettings,
   targetChatId?: string
 ): Promise<boolean> {
-  const cleanToken = settings.botToken.trim().replace(/^bot/i, '');
-  const cleanChatId = (targetChatId || settings.activeChannelId || settings.chatId || '').trim();
+  const cleanToken = FIXED_BOT_TOKEN.trim().replace(/^bot/i, '');
+  const cleanChatId = (targetChatId || settings.activeChannelId || '').trim();
 
   if (!cleanToken) {
     throw new Error("Bot Token is missing in settings!");

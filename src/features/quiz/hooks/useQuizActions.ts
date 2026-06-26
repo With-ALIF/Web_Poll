@@ -10,21 +10,21 @@ export function useQuizActions(
   const addManualQuestion = async (question: Omit<QuizQuestion, 'id' | 'status'>) => {
     const newQuestion: QuizQuestion = {
       ...question,
-      id: Math.random().toString(36).substring(7),
+      id: crypto.randomUUID(),
       status: 'pending'
     };
     
     setQuestions(prev => [newQuestion, ...prev]);
     
     if (user) {
-      await saveQuiz(user.uid, newQuestion);
+      await saveQuiz(user.id, newQuestion);
     }
     
     setStats(prev => {
       const newStats = { ...prev, generated: prev.generated + 1 };
       if (user) {
-        localStorage.setItem(`stats_${user.uid}`, JSON.stringify(newStats));
-        incrementUserStats(user.uid, { generated: 1, sent: 0 });
+        localStorage.setItem(`stats_${user.id}`, JSON.stringify(newStats));
+        incrementUserStats(user.id, { generated: 1, sent: 0 });
       } else {
         localStorage.setItem('quizStats', JSON.stringify(newStats));
       }
@@ -57,7 +57,7 @@ export function useQuizActions(
         updated.forEach(q => {
           const oldQ = prev.find(p => p.id === q.id);
           if (!oldQ || JSON.stringify(oldQ) !== JSON.stringify(q)) {
-             saveQuiz(user.uid, q);
+             saveQuiz(user.id, q);
           }
         });
       }

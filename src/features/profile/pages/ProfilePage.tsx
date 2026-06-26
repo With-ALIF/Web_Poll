@@ -99,7 +99,7 @@ export default function ProfilePage() {
 
         <ProfileInfo 
           email={user.email} 
-          uid={user.uid} 
+          uid={user.id} 
         />
 
         <ProfileForm 

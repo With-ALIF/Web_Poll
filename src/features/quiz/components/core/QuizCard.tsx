@@ -77,14 +77,13 @@ export default function QuizCard({
           />
         </div>
         <div className="flex-1">
-          {question.topic && (
+          {question.topic ? (
             <span className="inline-block bg-indigo-50 text-indigo-600 text-xs font-semibold px-2.5 py-1 rounded-md mb-2 border border-indigo-100">
               {question.topic}
             </span>
-          )}
-          {question.type === 'header' && (
-            <span className="inline-block bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md mb-2 border border-emerald-100 ml-2">
-              Header Post
+          ) : (
+            <span className="inline-block bg-red-50 text-red-600 text-xs font-semibold px-2.5 py-1 rounded-md mb-2 border border-red-100 animate-pulse">
+              Missing Topic
             </span>
           )}
           <h3 className="font-semibold text-lg text-slate-800 leading-snug mb-3">{question.question}</h3>
@@ -92,39 +91,35 @@ export default function QuizCard({
             <div className="mb-4">
               <img 
                 src={question.image} 
-                alt="Header visual" 
-                className={`rounded-xl border border-slate-200 object-contain ${question.type === 'header' ? 'w-full max-h-72' : 'max-h-48'}`}
+                alt="Poll visual" 
+                className="rounded-xl border border-slate-200 object-contain max-h-48"
               />
             </div>
           )}
         </div>
       </div>
       
-      {question.type !== 'header' && (
-        <>
-          <div className="space-y-2.5 mb-5">
-            {question.options.map((opt, idx) => (
-              <div 
-                key={idx}
-                className={`p-3.5 rounded-2xl text-sm border transition-colors ${
-                  idx === question.correctOptionIndex 
-                    ? 'bg-green-50/50 border-green-200 text-green-800 font-medium' 
-                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                {opt}
-                {idx === question.correctOptionIndex && (
-                  <CheckCircle2 className="w-4 h-4 inline-block ml-2 text-green-600" />
-                )}
-              </div>
-            ))}
+      <div className="space-y-2.5 mb-5">
+        {question.options.map((opt, idx) => (
+          <div 
+            key={idx}
+            className={`p-3.5 rounded-2xl text-sm border transition-colors ${
+              idx === question.correctOptionIndex 
+                ? 'bg-green-50/50 border-green-200 text-green-800 font-medium' 
+                : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            {opt}
+            {idx === question.correctOptionIndex && (
+              <CheckCircle2 className="w-4 h-4 inline-block ml-2 text-green-600" />
+            )}
           </div>
-          
-          <div className="bg-indigo-50/50 border border-indigo-100/50 text-indigo-900 p-4 rounded-2xl text-sm mb-5 leading-relaxed">
-            <strong className="text-indigo-700">Explanation:</strong> {question.explanation}
-          </div>
-        </>
-      )}
+        ))}
+      </div>
+      
+      <div className="bg-indigo-50/50 border border-indigo-100/50 text-indigo-900 p-4 rounded-2xl text-sm mb-5 leading-relaxed">
+        <strong className="text-indigo-700">Explanation:</strong> {question.explanation}
+      </div>
 
       <QuizCardActions 
         question={question} 

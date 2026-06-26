@@ -18,6 +18,14 @@ export default function AppRoutes({ appState }: AppRoutesProps) {
 
   const handleDraftSelected = async (ids: string[]) => {
     const selectedQuestions = pendingQuestions.filter(q => ids.includes(q.id));
+    
+    // Check if all selected questions have a topic
+    const missingTopic = selectedQuestions.find(q => !q.topic);
+    if (missingTopic) {
+      appState.telegram.setSendError('ড্রাফটে সেভ করার আগে অবশ্যই একটি বিষয় (Topic) নির্বাচন করতে হবে।');
+      return;
+    }
+
     await moveManyToDraft(selectedQuestions);
     quiz.removeQuestions(ids);
   };

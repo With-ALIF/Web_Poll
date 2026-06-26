@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { QuizQuestion } from '../../../../types';
 import ManualQuizInput from './ManualQuizInput';
 import AIQuizInput from './AIQuizInput';
-import TopicHeaderInput from './TopicHeaderInput';
 
 interface QuizInputProps {
   inputText: string;
@@ -37,7 +36,7 @@ export default function QuizInput({
   setPreserveBoardInfo,
   className = ""
 }: QuizInputProps & { className?: string }) {
-  const [mode, setMode] = useState<'ai' | 'manual' | 'header'>('ai');
+  const [mode, setMode] = useState<'ai' | 'manual'>('ai');
   const [showTutorial, setShowTutorial] = useState(false);
   const canGenerate = isGenerating || (!(inputText.trim() || lastInputText.trim()) || questionCount < 1);
   
@@ -58,12 +57,6 @@ export default function QuizInput({
               className={`flex-1 sm:px-8 py-1.5 sm:py-2 px-3 rounded-full text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${mode === 'manual' ? 'bg-[#2C4B9B] text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
             >
               Manual
-            </button>
-            <button
-              onClick={() => setMode('header')}
-              className={`flex-1 sm:px-8 py-1.5 sm:py-2 px-3 rounded-full text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${mode === 'header' ? 'bg-[#2C4B9B] text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              Header
             </button>
           </div>
           <div className="flex justify-center mt-3">
@@ -90,10 +83,8 @@ export default function QuizInput({
             preserveBoardInfo={preserveBoardInfo}
             setPreserveBoardInfo={setPreserveBoardInfo}
           />
-        ) : mode === 'manual' ? (
-          <ManualQuizInput onAdd={addManualQuestion} />
         ) : (
-          <TopicHeaderInput onAdd={addManualQuestion} />
+          <ManualQuizInput onAdd={addManualQuestion} />
         )}
       </div>
 

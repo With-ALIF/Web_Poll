@@ -19,7 +19,7 @@ export function useQuizSync(
 
     const initSync = async () => {
       if (user) {
-        console.log("Initializing real-time sync for UID:", user.uid);
+        console.log("Initializing real-time sync for UID:", user.id);
         
         // Initial migration if needed
         const savedQuizzes = localStorage.getItem('savedQuizzes');
@@ -28,7 +28,7 @@ export function useQuizSync(
             const localQuestions: QuizQuestion[] = JSON.parse(savedQuizzes);
             if (localQuestions.length > 0) {
               console.log("Migrating local quizzes to Firestore...");
-              await batchSaveQuizzes(user.uid, localQuestions);
+              await batchSaveQuizzes(user.id, localQuestions);
               localStorage.removeItem('savedQuizzes');
             }
           } catch (e) {
@@ -42,7 +42,7 @@ export function useQuizSync(
             const localStats = JSON.parse(savedStats);
             if (localStats.generated > 0 || localStats.sent > 0) {
               console.log("Migrating local stats to Firestore...");
-              await updateUserStats(user.uid, localStats);
+              await updateUserStats(user.id, localStats);
               localStorage.removeItem('quizStats');
             }
           } catch (e) {
@@ -51,7 +51,7 @@ export function useQuizSync(
         }
 
         // Subscribe to real-time updates for quizzes
-        unsubscribeQuizzes = subscribeToQuizzes(user.uid, (loadedQuestions) => {
+        unsubscribeQuizzes = subscribeToQuizzes(user.id, (loadedQuestions) => {
           console.log(`Real-time update: ${loadedQuestions.length} quizzes received`);
           const sorted = [...loadedQuestions].sort((a, b) => {
             const timeA = (a as any).createdAt?.seconds || 0;
@@ -62,7 +62,7 @@ export function useQuizSync(
         });
 
         // Subscribe to real-time updates for stats
-        unsubscribeStats = subscribeToUserStats(user.uid, (loadedStats) => {
+        unsubscribeStats = subscribeToUserStats(user.id, (loadedStats) => {
           console.log("Real-time stats update received:", loadedStats);
           setStats(loadedStats);
         });
@@ -94,5 +94,5 @@ export function useQuizSync(
       if (unsubscribeQuizzes) unsubscribeQuizzes();
       if (unsubscribeStats) unsubscribeStats();
     };
-  }, [user?.uid, authLoading, setQuestions, setStats]);
+  }, [user?.id, authLoading, setQuestions, setStats]);
 }

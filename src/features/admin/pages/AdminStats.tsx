@@ -21,11 +21,9 @@ export default function AdminStats() {
             .from('system_stats')
             .upsert({
               key: 'stats',
-              value: {
-                userCount: regularUsersCount,
-                totalPollsGenerated,
-                totalPollsSent
-              },
+              user_count: regularUsersCount,
+              total_polls_generated: totalPollsGenerated,
+              total_polls_sent: totalPollsSent,
               updated_at: new Date().toISOString()
             });
         } catch (error) {

@@ -11,7 +11,6 @@ interface SettingsPageProps {
   settings: TelegramSettings;
   setSettings: (settings: TelegramSettings) => void;
   saveSettings: (settings: TelegramSettings) => void;
-  botToken: string;
   canEditSuffix?: boolean;
   globalDefaultSuffix?: string;
   isLoading?: boolean;
@@ -21,7 +20,6 @@ export default function SettingsPage({
   settings,
   setSettings,
   saveSettings,
-  botToken,
   canEditSuffix = true,
   globalDefaultSuffix,
   isLoading = false
@@ -40,7 +38,7 @@ export default function SettingsPage({
     handleAddChannel,
     removeChannel,
     toggleChannelSelection
-  } = useChannelManager(settings, saveSettings, botToken);
+  } = useChannelManager(settings, saveSettings);
 
   const handleSave = () => {
     saveSettings(settings);
