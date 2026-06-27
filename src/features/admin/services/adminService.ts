@@ -1,5 +1,4 @@
 import { supabase } from '../../../lib/supabase';
-import { getAllUserPermissionsConfigs } from './permissionHelper';
 
 export const fetchAllUsers = async () => {
   try {

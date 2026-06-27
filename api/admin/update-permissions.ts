@@ -55,9 +55,22 @@ export default async function handler(req: any, res: any) {
       auth: { autoRefreshToken: false, persistSession: false }
     });
 
+    const permObj = {
+      polls: (permissions || []).includes('polls'),
+      drafts: (permissions || []).includes('drafts'),
+      formats: (permissions || []).includes('formats'),
+      csv_modifier: (permissions || []).includes('csv-modifier'),
+      ocr: (permissions || []).includes('ocr'),
+      photocard: (permissions || []).includes('photocard'),
+      exam_paper: (permissions || []).includes('exam-paper'),
+      note: (permissions || []).includes('note'),
+      suffix_edit: (permissions || []).includes('suffix-edit'),
+      qbs: (permissions || []).includes('qbs'),
+    };
+
     const { error } = await supabaseAdmin
-      .from('profiles')
-      .update({ permissions })
+      .from('profile_permissions')
+      .update(permObj)
       .eq('id', userId);
 
     if (error) {

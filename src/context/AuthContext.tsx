@@ -3,7 +3,6 @@ import { supabase } from '../lib/supabase';
 import { User } from '@supabase/supabase-js';
 import { createUserProfile, signInWithEmail, signUpWithEmail, resetPassword } from '../features/auth/services/authService';
 import { ADMIN_EMAILS } from '../features/auth/constants';
-import { getUserPermissionsConfig } from '../features/admin/services/permissionHelper';
 
 interface AuthContextType {
   user: any | null;
@@ -65,14 +64,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Fetch profile
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('*')
+          .select('*, profile_permissions(*)')
           .eq('id', user.id)
           .single();
         
         if (profileError) throw profileError;
         
         if (profileData) {
-          const userPerms = profileData.permissions || await getUserPermissionsConfig(user.id) || [];
+          const perms = [];
+          if (profileData.profile_permissions) {
+            const p = Array.isArray(profileData.profile_permissions) ? profileData.profile_permissions[0] : profileData.profile_permissions;
+            if (p) {
+              if (p.polls) perms.push('polls');
+              if (p.drafts) perms.push('drafts');
+              if (p.formats) perms.push('formats');
+              if (p.csv_modifier) perms.push('csv-modifier');
+              if (p.ocr) perms.push('ocr');
+              if (p.photocard) perms.push('photocard');
+              if (p.exam_paper) perms.push('exam-paper');
+              if (p.note) perms.push('note');
+              if (p.suffix_edit) perms.push('suffix-edit');
+              if (p.qbs) perms.push('qbs');
+            }
+          }
+          const userPerms = perms;
           const enrichedProfile = { ...profileData, permissions: userPerms };
           localStorage.setItem(`profile_${user.id}`, JSON.stringify(enrichedProfile));
           setProfile(enrichedProfile);
@@ -88,16 +103,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Subscribe to profile changes
       try {
         profileSubscription = supabase
-          .channel(`profile_${user.id}`)
+          .channel(`profile_and_perms_${user.id}`)
           .on('postgres_changes', { 
             event: 'UPDATE', 
             schema: 'public', 
             table: 'profiles', 
             filter: `id=eq.${user.id}` 
-          }, async payload => {
+          }, payload => {
             if (payload.new) {
-              const userPerms = (payload.new as any).permissions || await getUserPermissionsConfig(user.id) || [];
-              setProfile({ ...(payload.new as any), permissions: userPerms });
+              setProfile((prev: any) => ({ ...prev, ...(payload.new as any) }));
+            }
+          })
+          .on('postgres_changes', { 
+            event: 'UPDATE', 
+            schema: 'public', 
+            table: 'profile_permissions', 
+            filter: `id=eq.${user.id}` 
+          }, payload => {
+            if (payload.new) {
+              const p = payload.new as any;
+              const perms = [];
+              if (p.polls) perms.push('polls');
+              if (p.drafts) perms.push('drafts');
+              if (p.formats) perms.push('formats');
+              if (p.csv_modifier) perms.push('csv-modifier');
+              if (p.ocr) perms.push('ocr');
+              if (p.photocard) perms.push('photocard');
+              if (p.exam_paper) perms.push('exam-paper');
+              if (p.note) perms.push('note');
+              if (p.suffix_edit) perms.push('suffix-edit');
+              if (p.qbs) perms.push('qbs');
+              
+              setProfile((prev: any) => ({ ...prev, permissions: perms }));
             }
           })
           .subscribe();

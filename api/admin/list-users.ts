@@ -38,7 +38,7 @@ export default async function handler(req: any, res: any) {
     // Fetch all profiles. Using a large limit just in case.
     const { data: profiles, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('*')
+      .select('*, profile_permissions(*)')
       .limit(2000);
       
     if (profileError) throw profileError;
@@ -54,13 +54,30 @@ export default async function handler(req: any, res: any) {
         generated: dbProfile.total_generated || 0,
         sent: dbProfile.total_sent || 0
       };
+
+      const perms = [];
+      if (dbProfile.profile_permissions) {
+        const p = Array.isArray(dbProfile.profile_permissions) ? dbProfile.profile_permissions[0] : dbProfile.profile_permissions;
+        if (p) {
+          if (p.polls) perms.push('polls');
+          if (p.drafts) perms.push('drafts');
+          if (p.formats) perms.push('formats');
+          if (p.csv_modifier) perms.push('csv-modifier');
+          if (p.ocr) perms.push('ocr');
+          if (p.photocard) perms.push('photocard');
+          if (p.exam_paper) perms.push('exam-paper');
+          if (p.note) perms.push('note');
+          if (p.suffix_edit) perms.push('suffix-edit');
+          if (p.qbs) perms.push('qbs');
+        }
+      }
       
       return {
         ...u,
         displayName: dbProfile.display_name || u.user_metadata?.full_name || u.email?.split('@')[0] || 'Anonymous',
         photoURL: dbProfile.photo_url || u.user_metadata?.avatar_url || '',
         role: dbProfile.role || 'user',
-        permissions: dbProfile.permissions || [],
+        permissions: perms,
         stats: stats,
         createdAt: u.created_at ? { seconds: Math.floor(new Date(u.created_at).getTime() / 1000) } : { seconds: 0 }
       };

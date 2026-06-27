@@ -302,9 +302,22 @@ async function startServer() {
         auth: { autoRefreshToken: false, persistSession: false }
       });
 
+      const permObj = {
+        polls: (permissions || []).includes('polls'),
+        drafts: (permissions || []).includes('drafts'),
+        formats: (permissions || []).includes('formats'),
+        csv_modifier: (permissions || []).includes('csv-modifier'),
+        ocr: (permissions || []).includes('ocr'),
+        photocard: (permissions || []).includes('photocard'),
+        exam_paper: (permissions || []).includes('exam-paper'),
+        note: (permissions || []).includes('note'),
+        suffix_edit: (permissions || []).includes('suffix-edit'),
+        qbs: (permissions || []).includes('qbs'),
+      };
+
       const { error } = await supabaseAdmin
-        .from('profiles')
-        .update({ permissions })
+        .from('profile_permissions')
+        .update(permObj)
         .eq('id', userId);
 
       if (error) throw error;
@@ -368,13 +381,24 @@ async function startServer() {
         console.error("Warning: Profile record creation failed:", profileError.message);
       }
 
-      // 3. Save permissions into system_config
+      const permObj = {
+        polls: (permissions || []).includes('polls'),
+        drafts: (permissions || []).includes('drafts'),
+        formats: (permissions || []).includes('formats'),
+        csv_modifier: (permissions || []).includes('csv-modifier'),
+        ocr: (permissions || []).includes('ocr'),
+        photocard: (permissions || []).includes('photocard'),
+        exam_paper: (permissions || []).includes('exam-paper'),
+        note: (permissions || []).includes('note'),
+        suffix_edit: (permissions || []).includes('suffix-edit'),
+        qbs: (permissions || []).includes('qbs'),
+      };
+
+      // 3. Update permissions in profile_permissions
       const { error: permConfigError } = await supabaseAdmin
-        .from('system_config')
-        .upsert({
-          key: `permissions_${createdUser.id}`,
-          value: { permissions: permissions || [] }
-        }, { onConflict: 'key' });
+        .from('profile_permissions')
+        .update(permObj)
+        .eq('id', createdUser.id);
 
       if (permConfigError) {
         console.error("Warning: Permissions config creation failed:", permConfigError.message);
@@ -499,7 +523,7 @@ async function startServer() {
       // Fetch profiles from DB
       const { data: profiles, error: profileError } = await supabaseAdmin
         .from('profiles')
-        .select('*');
+        .select('*, profile_permissions(*)');
       
       if (profileError) throw profileError;
 
@@ -510,12 +534,30 @@ async function startServer() {
 
       const mergedUsers = authUsers.map(u => {
         const profile = profileMap[u.id] || {};
+        
+        const perms = [];
+        if (profile.profile_permissions) {
+          const p = Array.isArray(profile.profile_permissions) ? profile.profile_permissions[0] : profile.profile_permissions;
+          if (p) {
+            if (p.polls) perms.push('polls');
+            if (p.drafts) perms.push('drafts');
+            if (p.formats) perms.push('formats');
+            if (p.csv_modifier) perms.push('csv-modifier');
+            if (p.ocr) perms.push('ocr');
+            if (p.photocard) perms.push('photocard');
+            if (p.exam_paper) perms.push('exam-paper');
+            if (p.note) perms.push('note');
+            if (p.suffix_edit) perms.push('suffix-edit');
+            if (p.qbs) perms.push('qbs');
+          }
+        }
+        
         return {
           ...u,
           displayName: profile.display_name || u.user_metadata?.full_name || u.email?.split('@')[0] || 'Anonymous',
           photoURL: profile.photo_url || u.user_metadata?.avatar_url || '',
           role: profile.role || 'user',
-          permissions: profile.permissions || [],
+          permissions: perms,
           stats: { 
             generated: profile.total_generated || 0, 
             sent: profile.total_sent || 0 

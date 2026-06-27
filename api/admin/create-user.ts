@@ -98,12 +98,23 @@ export default async function handler(req: any, res: any) {
       console.error("Warning: Profile record creation failed:", profileError.message);
     }
 
+    const permObj = {
+      polls: (permissions || []).includes('polls'),
+      drafts: (permissions || []).includes('drafts'),
+      formats: (permissions || []).includes('formats'),
+      csv_modifier: (permissions || []).includes('csv-modifier'),
+      ocr: (permissions || []).includes('ocr'),
+      photocard: (permissions || []).includes('photocard'),
+      exam_paper: (permissions || []).includes('exam-paper'),
+      note: (permissions || []).includes('note'),
+      suffix_edit: (permissions || []).includes('suffix-edit'),
+      qbs: (permissions || []).includes('qbs'),
+    };
+
     const { error: permConfigError } = await supabaseAdmin
-      .from('system_config')
-      .upsert({
-        key: `permissions_${createdUser.id}`,
-        value: { permissions: permissions || [] }
-      }, { onConflict: 'key' });
+      .from('profile_permissions')
+      .update(permObj)
+      .eq('id', createdUser.id);
 
     if (permConfigError) {
       console.error("Warning: Permissions config creation failed:", permConfigError.message);

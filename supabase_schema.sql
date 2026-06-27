@@ -37,6 +37,39 @@ CREATE POLICY "Admins can update any profile." ON public.profiles
     )
   );
 
+-- Create Profile Permissions table
+CREATE TABLE IF NOT EXISTS public.profile_permissions (
+  id UUID REFERENCES public.profiles(id) ON DELETE CASCADE PRIMARY KEY,
+  polls BOOLEAN NOT NULL DEFAULT FALSE,
+  drafts BOOLEAN NOT NULL DEFAULT FALSE,
+  formats BOOLEAN NOT NULL DEFAULT FALSE,
+  csv_modifier BOOLEAN NOT NULL DEFAULT FALSE,
+  ocr BOOLEAN NOT NULL DEFAULT FALSE,
+  photocard BOOLEAN NOT NULL DEFAULT FALSE,
+  exam_paper BOOLEAN NOT NULL DEFAULT FALSE,
+  note BOOLEAN NOT NULL DEFAULT FALSE,
+  suffix_edit BOOLEAN NOT NULL DEFAULT FALSE,
+  qbs BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS for Profile Permissions
+ALTER TABLE public.profile_permissions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view their own permissions." ON public.profile_permissions;
+CREATE POLICY "Users can view their own permissions." ON public.profile_permissions
+  FOR SELECT USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Admins can manage all permissions." ON public.profile_permissions;
+CREATE POLICY "Admins can manage all permissions." ON public.profile_permissions
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.profiles
+      WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
+    )
+  );
+
 -- Create Notes table
 CREATE TABLE IF NOT EXISTS public.notes (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -229,6 +262,10 @@ BEGIN
       ELSE 'user' 
     END
   );
+
+  INSERT INTO public.profile_permissions (id)
+  VALUES (NEW.id);
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
