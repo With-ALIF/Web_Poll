@@ -56,6 +56,7 @@ export default async function handler(req: any, res: any) {
     });
 
     const permObj = {
+      id: userId,
       polls: (permissions || []).includes('polls'),
       drafts: (permissions || []).includes('drafts'),
       formats: (permissions || []).includes('formats'),
@@ -70,8 +71,7 @@ export default async function handler(req: any, res: any) {
 
     const { error } = await supabaseAdmin
       .from('profile_permissions')
-      .update(permObj)
-      .eq('id', userId);
+      .upsert(permObj);
 
     if (error) {
       return res.status(400).json({ error: error.message });

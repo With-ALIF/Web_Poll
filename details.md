@@ -11,23 +11,23 @@ TeleQuiz is a comprehensive, full-stack web application designed to streamline t
 - **Manual Editor**: A robust interface to fine-tune AI-generated questions. Features include real-time validation of correct option indices and mandatory explanation fields.
 - **Image Integration**:
   - **URL-based**: Direct linking to cloud-hosted images.
-  - **Storage-based**: Integration with Firebase Storage or external hosting providers.
+  - **Storage-based**: Integration with Supabase Storage or external hosting providers.
 - **Dynamic Bulk Operations**:
-  - **Batch Topic Assignment**: Updates the `topic` field across selected Firestore documents in a single transaction or batch.
+  - **Batch Topic Assignment**: Updates the `topic` field across selected PostgreSQL records in a single transaction or batch.
   - **Telegram Queueing**: Parallelized sending logic with rate-limit awareness to prevent bot throttling.
   - **Sync-to-Draft**: Instant status update from `pending` to `draft`, triggering real-time UI updates via listener hooks.
 
 ### 2.2. Draft & Poll Management
 - **Drafts Page**: A dedicated workspace for questions not yet ready for publication.
-  - **Persistence**: Drafts are stored in Firestore, ensuring they persist across sessions.
+  - **Persistence**: Drafts are stored in PostgreSQL (Supabase), ensuring they persist across sessions.
   - **Workflow**: Drafts can be sent directly to Telegram. Upon successful sending, they are moved to the "Sent Polls" list.
 - **Sent Polls Page**: A historical archive of all polls successfully deployed to Telegram channels.
-- **Real-time Sync**: The application uses Firestore's `onSnapshot` to provide real-time updates across all devices.
+- **Real-time Sync**: The application uses Supabase Realtime to provide real-time updates across all devices.
 
 ### 2.3. Utility Tools
 - **CSV Modifier**: A specialized tool to modify CSV exports. It allows users to append custom suffixes to question sections.
 - **Enhanced CSV Export**: The CSV export logic has been refined. From the suffix input, `Type` is now strictly set to `1`, while the `Section` is dynamically set based on the user's input (e.g., `bm`, `bn`, `p`, `c`).
-- **QBS (Question Bank System)**: A new integration currently in development ("Coming Soon"). It is designed to allow users to store and manage a centralized bank of questions using Firestore. Access is managed by admins.
+- **QBS (Question Bank System)**: A new integration currently in development ("Coming Soon"). It is designed to allow users to store and manage a centralized bank of questions using PostgreSQL. Access is managed by admins.
 
 ### 2.4. Role-Based Access Control (RBAC) & Admin Tools
 - **Hierarchical Access**:
@@ -40,7 +40,7 @@ TeleQuiz is a comprehensive, full-stack web application designed to streamline t
 - **Feature Directory**: A central hub where admins can visualize and test new integrations before rolling them out to users.
 
 ### 2.5. Telegram & Bot Execution Logic
-- **Secured Credentials**: Bot tokens and Channel IDs are stored in user-specific Firestore settings, never exposed in client-side code repositories.
+- **Secured Credentials**: Bot tokens and Channel IDs are stored in user-specific Supabase tables, never exposed in client-side code repositories.
 - **Poll Construction**: The application converts internal question objects into Telegram `sendPoll` or `sendPhoto` + `sendPoll` method calls depending on image presence.
 - **Message Templates**: Supports dynamic injection of prefixes/suffixes (e.g., `[Topic] Question?`).
 
@@ -77,9 +77,9 @@ TeleQuiz is a comprehensive, full-stack web application designed to streamline t
 - **Icons**: `lucide-react`.
 
 ### 4.2. Backend & Infrastructure
-- **Database**: Firebase Firestore (NoSQL).
-- **Authentication**: Firebase Authentication (Google Login).
-- **Security**: Firestore Security Rules enforce data ownership (users can only access their own quizzes, drafts, and settings).
+- **Database**: Supabase PostgreSQL.
+- **Authentication**: Supabase Auth.
+- **Security**: Supabase Row Level Security (RLS) enforce data ownership (users can only access their own quizzes, drafts, and settings).
 - **Deployment**: Deployed on Google Cloud Run.
 
 ## 5. Project Structure
@@ -94,64 +94,77 @@ TeleQuiz is a comprehensive, full-stack web application designed to streamline t
   - `admin/`: User and system management for admins.
   - `note/`: Smart Note formatting, client-side PDF pagination processor, and Telegram release dispatcher.
 - `/src/components/`: Shared UI components (Header, Footer, Navigation, ProtectedRoute).
-- `/src/lib/`: Utility functions (e.g., `firestoreUtils.ts` for error handling).
+- `/src/lib/`: Utility functions (e.g., `supabase.ts` for database connection).
 - `/src/app/`: Application entry points (`App.tsx`, `AppRoutes.tsx`, `useAppInit.ts`).
 
 ## 6. Data Models & Schemas
 
 ### 6.1. QuizQuestion
-```typescript
-{
-  id: string; // Firestore Auto-ID
-  question: string; // Max 300 chars (Telegram limit)
-  options: string[]; // 2-10 options
-  correctOptionIndex: number; // 0-based
-  explanation: string; // Max 200 chars (Telegram limit)
-  status: 'pending' | 'sending' | 'sent' | 'error';
-  image?: string; // Optional URL
-  topic?: string; // Used for organization
-  userId: string; // Relational link to User
-  createdAt: Timestamp; // Server side timestamp
-}
+```sql
+CREATE TABLE public.poll_questions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  question TEXT NOT NULL,
+  options TEXT[] NOT NULL, -- Array of strings (2-10 options)
+  correct_option_index INT NOT NULL,
+  explanation TEXT,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'sending', 'sent', 'error')),
+  image TEXT,
+  topic TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Row Level Security (RLS)
+ALTER TABLE public.poll_questions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage their own poll questions." 
+ON public.poll_questions FOR ALL 
+USING (auth.uid() = user_id);
+
 ```
 
 ### 6.2. User (AdminUser)
-```typescript
-{
-  id: string; // Firebase Auth UID
-  email: string;
-  displayName: string;
-  role: 'admin' | 'user';
-  permissions: string[]; // ['qbs', 'polls', etc.]
-  lastActive: Timestamp;
-}
+```sql
+CREATE TABLE public.profiles (
+  id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
+  email TEXT,
+  display_name TEXT,
+  photo_url TEXT,
+  role TEXT DEFAULT 'user' CHECK (role IN ('admin', 'user')),
+  last_active TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- RLS
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their own profile." 
+ON public.profiles FOR SELECT 
+USING (auth.uid() = id);
 ```
 
 ### 6.3. UserSettings
-```typescript
-{
-  botToken: string;
-  activeChannelId: string;
-  channels: Array<{ id: string; name: string }>;
-  formatting: {
-    questionPrefix: string;
-    explanationSuffix: string;
-    // ... other flags
-  }
-}
+```sql
+CREATE TABLE public.settings (
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
+  bot_token TEXT,
+  active_channel_id TEXT,
+  channels JSONB DEFAULT '[]'::jsonb, -- Array of channel objects
+  formatting JSONB DEFAULT '{
+    "questionPrefix": "",
+    "explanationSuffix": ""
+  }'::jsonb,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
 
-### 6.4. Note
-```typescript
-{
-  id: string; // Firestore Document ID
-  userId: string; // Relational link to User
-  title: string; // Title of the study note
-  rawInput: string; // Raw input material
-  formattedContent: string; // Rendered markdown note response from Gemini
-  status: 'draft' | 'sending' | 'sent' | 'error';
-  createdAt?: Timestamp; // Server side timestamp
-  updatedAt?: Timestamp; // Server side timestamp
-}
+-- RLS
+ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can manage their own settings." 
+ON public.settings FOR ALL 
+USING (auth.uid() = user_id);
 ```
 
 **Smart Note এর প্রধান কাজসমূহ (Key Capabilities):**
@@ -165,8 +178,8 @@ TeleQuiz is a comprehensive, full-stack web application designed to streamline t
 
 ```
 ## 7. Security & Validation
-- **Firestore Rules**: Strict rules ensure that users can only read/write their own data (`userId` matching `request.auth.uid`).
-- **Error Handling**: Custom error boundaries and Firestore error handlers (`handleFirestoreError`) ensure that permission issues are logged and surfaced to the user.
+- **Supabase RLS**: Strict rules ensure that users can only read/write their own data (`userId` matching `auth.uid()`).
+- **Error Handling**: Custom error boundaries and Supabase error handlers ensure that permission issues are logged and surfaced to the user.
 
 ## 8. Development Guidelines
 
@@ -179,25 +192,25 @@ TeleQuiz is a comprehensive, full-stack web application designed to streamline t
 - Prefer primitive values in dependency arrays for `useEffect`.
 - Avoid infinite re-renders by not updating state directly in the component body.
 
-### 8.3. Firebase Integration
-- Use `firebase-applet-config.json` for configuration.
-- Always use `onSnapshot()` for real-time data fetching.
-- Implement robust error handling for all Firestore operations.
+### 8.3. Supabase Integration
+- Use `supabase_schema.sql` for initial setup.
+- Always use `.subscribe()` or PostgreSQL triggers for real-time data needs.
+- Implement robust error handling for all database operations.
 
 ## 9. Future Improvements
-- Complete QBS (Question Bank System) integration with Firestore.
+- Complete QBS (Question Bank System) integration with PostgreSQL.
 - Add support for more Telegram poll types (e.g., quiz, regular poll).
 - Implement advanced analytics for sent polls.
 - Add support for more AI models for content generation.
 - Enhance CSV Modifier with more advanced data transformation options.
 - Implement unit and integration tests for core features.
-- Optimize Firestore queries for better performance.
+- Optimize PostgreSQL queries for better performance.
 - Add support for custom themes in quiz generation.
 - Enhance Telegram channel formatting options.
 - Add support for user-defined quiz templates.
 
 ## 10. Conclusion
-TeleQuiz is designed to be a scalable, secure, and user-friendly platform for Telegram quiz management. By leveraging modern web technologies and Firebase, it provides a seamless experience for creators to generate, manage, and deploy content efficiently. The modular architecture ensures that new features can be added with minimal friction, making it a robust solution for content creators.
+TeleQuiz is designed to be a scalable, secure, and user-friendly platform for Telegram quiz management. By leveraging modern web technologies and Supabase, it provides a seamless experience for creators to generate, manage, and deploy content efficiently. The modular architecture ensures that new features can be added with minimal friction, making it a robust solution for content creators.
 
 ---
  

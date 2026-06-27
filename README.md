@@ -42,6 +42,7 @@ An AI-powered web application that automatically generates multiple-choice quizz
 - **Styling:** Tailwind CSS
 - **Icons:** Lucide React
 - **Animations:** Framer Motion
+- **Backend:** Supabase (SQL)
 - **AI Integration:** Google Gemini API (`@google/genai`)
 - **Telegram Integration:** Telegram Bot API (`sendPoll` method)
 

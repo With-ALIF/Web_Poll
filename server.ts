@@ -303,6 +303,7 @@ async function startServer() {
       });
 
       const permObj = {
+        id: userId,
         polls: (permissions || []).includes('polls'),
         drafts: (permissions || []).includes('drafts'),
         formats: (permissions || []).includes('formats'),
@@ -317,8 +318,7 @@ async function startServer() {
 
       const { error } = await supabaseAdmin
         .from('profile_permissions')
-        .update(permObj)
-        .eq('id', userId);
+        .upsert(permObj);
 
       if (error) throw error;
       res.status(200).json({ success: true });
@@ -382,6 +382,7 @@ async function startServer() {
       }
 
       const permObj = {
+        id: createdUser.id,
         polls: (permissions || []).includes('polls'),
         drafts: (permissions || []).includes('drafts'),
         formats: (permissions || []).includes('formats'),
@@ -397,8 +398,7 @@ async function startServer() {
       // 3. Update permissions in profile_permissions
       const { error: permConfigError } = await supabaseAdmin
         .from('profile_permissions')
-        .update(permObj)
-        .eq('id', createdUser.id);
+        .upsert(permObj);
 
       if (permConfigError) {
         console.error("Warning: Permissions config creation failed:", permConfigError.message);

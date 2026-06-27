@@ -99,6 +99,7 @@ export default async function handler(req: any, res: any) {
     }
 
     const permObj = {
+      id: createdUser.id,
       polls: (permissions || []).includes('polls'),
       drafts: (permissions || []).includes('drafts'),
       formats: (permissions || []).includes('formats'),
@@ -113,8 +114,7 @@ export default async function handler(req: any, res: any) {
 
     const { error: permConfigError } = await supabaseAdmin
       .from('profile_permissions')
-      .update(permObj)
-      .eq('id', createdUser.id);
+      .upsert(permObj);
 
     if (permConfigError) {
       console.error("Warning: Permissions config creation failed:", permConfigError.message);
