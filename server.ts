@@ -448,17 +448,7 @@ async function startServer() {
         console.warn("Warning: Profile record deletion failed or user has no profile:", profileError.message);
       }
 
-      // 2. Delete permissions from system_config
-      const { error: permConfigError } = await supabaseAdmin
-        .from('system_config')
-        .delete()
-        .eq('key', `permissions_${userId}`);
-
-      if (permConfigError) {
-        console.warn("Warning: Permissions config deletion failed:", permConfigError.message);
-      }
-
-      // 3. Delete from auth.users (use admin client)
+      // 2. Delete from auth.users (use admin client)
       const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
       if (deleteAuthError) {
@@ -593,7 +583,8 @@ async function startServer() {
         .from('system_config')
         .upsert({
           key,
-          value,
+          updated_by: value.updated_by || 'Admin',
+          default_suffix: value.default_suffix || '',
           updated_at: new Date().toISOString()
         }, { onConflict: 'key' });
 

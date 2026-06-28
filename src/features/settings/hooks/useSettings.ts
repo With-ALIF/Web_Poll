@@ -21,7 +21,7 @@ export function useSettings() {
   const canEditSuffix = isAdmin || user?.permissions?.includes('suffix-edit');
 
   useEffect(() => {
-    const currentDefault = appConfig?.defaultSuffix ?? DEFAULT_SUFFIX;
+    const currentDefault = appConfig?.default_suffix ?? DEFAULT_SUFFIX;
     setGlobalDefaultSuffix(currentDefault);
 
     const loadSettings = async () => {

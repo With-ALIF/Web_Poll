@@ -26,7 +26,12 @@ export default async function handler(req: any, res: any) {
 
     const { error } = await supabaseAdmin
       .from('system_config')
-      .upsert({ key, value, updated_at: new Date().toISOString() });
+      .upsert({ 
+        key, 
+        updated_by: value.updated_by || 'Admin',
+        default_suffix: value.default_suffix || '',
+        updated_at: new Date().toISOString() 
+      });
     
     if (error) throw error;
     

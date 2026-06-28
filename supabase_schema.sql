@@ -105,13 +105,14 @@ CREATE POLICY "Users can delete their own notes." ON public.notes
 -- System Stats / Config (using a single record table or separate ones)
 CREATE TABLE IF NOT EXISTS public.system_config (
   key TEXT PRIMARY KEY,
-  value JSONB,
+  updated_by TEXT,
+  default_suffix TEXT,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Insert initial admin config if needed
-INSERT INTO public.system_config (key, value)
-VALUES ('config', '{"maintenanceMode": false, "registrationEnabled": true}')
+INSERT INTO public.system_config (key, default_suffix, updated_by)
+VALUES ('config', 'Generated via TeleQuiz', 'System')
 ON CONFLICT (key) DO NOTHING;
 
 -- System Config Policies

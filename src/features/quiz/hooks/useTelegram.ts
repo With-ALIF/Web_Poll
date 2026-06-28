@@ -30,7 +30,7 @@ export function useTelegram({ settings, questions, setQuestions, setStats, botTo
   }, []);
 
   const canEditSuffix = isAdmin || user?.permissions?.includes('suffix-edit');
-  const globalDefaultSuffix = appConfig?.defaultSuffix;
+  const globalDefaultSuffix = appConfig?.default_suffix;
 
   const handleSendToTelegram = useCallback(async (id: string, customQuestion?: QuizQuestion) => {
     const target = (user && settings.selectedChannelIds?.length) ? settings.selectedChannelIds : [settings.activeChannelId || ''];

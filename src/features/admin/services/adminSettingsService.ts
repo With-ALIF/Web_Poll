@@ -4,24 +4,29 @@ const TABLE_NAME = 'system_config';
 const CONFIG_KEY = 'config';
 
 export interface AppConfig {
-  defaultSuffix: string;
-  updatedAt: any;
-  updatedBy: string;
+  default_suffix: string;
+  updated_at: any;
+  updated_by: string;
 }
 
 export const fetchAppConfig = async (): Promise<AppConfig | null> => {
   try {
     const { data, error } = await supabase
       .from(TABLE_NAME)
-      .select('value')
+      .select('updated_by, default_suffix, updated_at')
       .eq('key', CONFIG_KEY)
       .single();
 
     if (error) throw error;
     
-    if (data && data.value) {
-      localStorage.setItem('app_config', JSON.stringify(data.value));
-      return data.value as AppConfig;
+    if (data) {
+      const config: AppConfig = {
+        updated_by: data.updated_by,
+        default_suffix: data.default_suffix,
+        updated_at: data.updated_at
+      };
+      localStorage.setItem('app_config', JSON.stringify(config));
+      return config;
     }
     return null;
   } catch (error: any) {

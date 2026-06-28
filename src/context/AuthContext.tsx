@@ -158,15 +158,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const { data, error } = await supabase
           .from('system_config')
-          .select('*')
+          .select('updated_by, default_suffix, updated_at')
           .eq('key', 'config')
           .single();
         
         if (error) throw error;
         
-        if (data && data.value) {
-          localStorage.setItem('app_config', JSON.stringify(data.value));
-          setAppConfig(data.value);
+        if (data) {
+          const config = {
+            updated_by: data.updated_by,
+            default_suffix: data.default_suffix,
+            updated_at: data.updated_at
+          };
+          localStorage.setItem('app_config', JSON.stringify(config));
+          setAppConfig(config);
         }
       } catch (err) {
         console.warn("Could not load app configuration from Supabase.", err);
@@ -181,8 +186,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .channel('system_config_changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'system_config', filter: 'key=eq.config' }, payload => {
           const newData = (payload.new as any);
-          if (newData && newData.value) {
-            const newValue = newData.value;
+          if (newData) {
+            const newValue = {
+              updated_by: newData.updated_by,
+              default_suffix: newData.default_suffix,
+              updated_at: newData.updated_at
+            };
             localStorage.setItem('app_config', JSON.stringify(newValue));
             setAppConfig(newValue);
           }
