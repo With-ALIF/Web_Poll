@@ -32,9 +32,6 @@ export default async function handler(req: any, res: any) {
       return res.status(403).json({ error: "Access denied." });
     }
 
-    const { data: { users: authUsers }, error: authError } = await supabaseAdmin.auth.admin.listUsers();
-    if (authError) throw authError;
-
     // Fetch all profiles. Using a large limit just in case.
     const { data: profiles, error: profileError } = await supabaseAdmin
       .from('profiles')
@@ -43,21 +40,25 @@ export default async function handler(req: any, res: any) {
       
     if (profileError) throw profileError;
 
-    const profileMap = (profiles || []).reduce((acc: any, p: any) => {
-      acc[p.id] = p;
-      return acc;
-    }, {});
-
-    const mergedUsers = authUsers.map(u => {
-      const dbProfile = profileMap[u.id] || {};
+    const mergedUsers = (profiles || [])
+      .filter((profile: any) => {
+        // Only show users created by admin (they have profile_permissions) or if they are admin themselves
+        const hasPermissions = profile.profile_permissions && 
+          (Array.isArray(profile.profile_permissions) 
+            ? profile.profile_permissions.length > 0 
+            : Object.keys(profile.profile_permissions).length > 0);
+            
+        return hasPermissions || profile.role === 'admin';
+      })
+      .map((profile: any) => {
       const stats = {
-        generated: dbProfile.total_generated || 0,
-        sent: dbProfile.total_sent || 0
+        generated: profile.total_generated || 0,
+        sent: profile.total_sent || 0
       };
 
       const perms = [];
-      if (dbProfile.profile_permissions) {
-        const p = Array.isArray(dbProfile.profile_permissions) ? dbProfile.profile_permissions[0] : dbProfile.profile_permissions;
+      if (profile.profile_permissions) {
+        const p = Array.isArray(profile.profile_permissions) ? profile.profile_permissions[0] : profile.profile_permissions;
         if (p) {
           if (p.polls) perms.push('polls');
           if (p.drafts) perms.push('drafts');
@@ -73,13 +74,14 @@ export default async function handler(req: any, res: any) {
       }
       
       return {
-        ...u,
-        displayName: dbProfile.display_name || u.user_metadata?.full_name || u.email?.split('@')[0] || 'Anonymous',
-        photoURL: dbProfile.photo_url || u.user_metadata?.avatar_url || '',
-        role: dbProfile.role || 'user',
+        id: profile.id,
+        email: profile.email || '',
+        displayName: profile.display_name || (profile.email ? profile.email.split('@')[0] : 'Anonymous'),
+        photoURL: profile.photo_url || '',
+        role: profile.role || 'user',
         permissions: perms,
         stats: stats,
-        createdAt: u.created_at ? { seconds: Math.floor(new Date(u.created_at).getTime() / 1000) } : { seconds: 0 }
+        createdAt: profile.created_at ? { seconds: Math.floor(new Date(profile.created_at).getTime() / 1000) } : { seconds: 0 }
       };
     });
 
