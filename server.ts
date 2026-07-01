@@ -513,7 +513,17 @@ async function startServer() {
       
       if (profileError) throw profileError;
 
-      const mergedUsers = (profiles || []).map((profile: any) => {
+      const mergedUsers = (profiles || [])
+        .filter((profile: any) => {
+          // Only show users created by admin (they have profile_permissions) or if they are admin themselves
+          const hasPermissions = profile.profile_permissions && 
+            (Array.isArray(profile.profile_permissions) 
+              ? profile.profile_permissions.length > 0 
+              : Object.keys(profile.profile_permissions).length > 0);
+              
+          return hasPermissions || profile.role === 'admin';
+        })
+        .map((profile: any) => {
         const perms = [];
         if (profile.profile_permissions) {
           const p = Array.isArray(profile.profile_permissions) ? profile.profile_permissions[0] : profile.profile_permissions;
