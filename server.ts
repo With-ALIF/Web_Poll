@@ -506,10 +506,6 @@ async function startServer() {
         auth: { autoRefreshToken: false, persistSession: false }
       });
 
-      // Fetch users from Auth
-      const { data: { users: authUsers }, error: authError } = await supabaseAdmin.auth.admin.listUsers();
-      if (authError) throw authError;
-
       // Fetch profiles from DB
       const { data: profiles, error: profileError } = await supabaseAdmin
         .from('profiles')
@@ -517,27 +513,7 @@ async function startServer() {
       
       if (profileError) throw profileError;
 
-      const profileMap = (profiles || []).reduce((acc: any, p: any) => {
-        acc[p.id] = p;
-        return acc;
-      }, {});
-
-      const mergedUsers = authUsers
-        .filter(u => {
-          const profile = profileMap[u.id];
-          if (!profile) return false;
-          
-          // Only show users who have a record in profile_permissions (i.e. created via TeleQuiz admin)
-          // or if they are an admin.
-          const hasPermissions = Array.isArray(profile.profile_permissions) 
-            ? profile.profile_permissions.length > 0 
-            : !!profile.profile_permissions;
-            
-          return hasPermissions || profile.role === 'admin';
-        })
-        .map(u => {
-        const profile = profileMap[u.id];
-        
+      const mergedUsers = (profiles || []).map((profile: any) => {
         const perms = [];
         if (profile.profile_permissions) {
           const p = Array.isArray(profile.profile_permissions) ? profile.profile_permissions[0] : profile.profile_permissions;
@@ -556,16 +532,17 @@ async function startServer() {
         }
         
         return {
-          ...u,
-          displayName: profile.display_name || u.user_metadata?.full_name || u.email?.split('@')[0] || 'Anonymous',
-          photoURL: profile.photo_url || u.user_metadata?.avatar_url || '',
+          id: profile.id,
+          email: profile.email || '',
+          displayName: profile.display_name || (profile.email ? profile.email.split('@')[0] : 'Anonymous'),
+          photoURL: profile.photo_url || '',
           role: profile.role || 'user',
           permissions: perms,
           stats: { 
             generated: profile.total_generated || 0, 
             sent: profile.total_sent || 0 
           },
-          createdAt: u.created_at ? { seconds: Math.floor(new Date(u.created_at).getTime() / 1000) } : { seconds: 0 }
+          createdAt: profile.created_at ? { seconds: Math.floor(new Date(profile.created_at).getTime() / 1000) } : { seconds: 0 }
         };
       });
 
