@@ -15,7 +15,7 @@ export function useNoteActions({ user, settings, fixedBotToken }: NoteActionsPro
     const text = await formatNoteWithGemini(rawInput);
     return {
       id: `note_${Date.now()}`,
-      userId: user?.uid || 'anonymous',
+      userId: user?.id || 'anonymous',
       title: title.trim() || `Smart Note - ${new Date().toLocaleDateString()}`,
       rawInput,
       formattedContent: text,
@@ -26,7 +26,6 @@ export function useNoteActions({ user, settings, fixedBotToken }: NoteActionsPro
   const sendTelegram = async (activeNote: Note, channelId: string): Promise<boolean> => {
     const formattedDate = new Date().toLocaleDateString('bn-BD', { year: 'numeric', month: 'long', day: 'numeric' });
     const prefix = `📚 *${activeNote.title}*\n👤 *Created By:* ${userDisplayName}\n📅 *Date:* ${formattedDate}\n━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    const token = settings.botToken || fixedBotToken;
     
     let content = activeNote.formattedContent;
     const suffix = settings.explanationSuffix?.trim();
@@ -34,7 +33,7 @@ export function useNoteActions({ user, settings, fixedBotToken }: NoteActionsPro
       content = `${content}\n\n${suffix}`;
     }
 
-    await sendNoteToTelegram(prefix + content, { ...settings, botToken: token }, channelId);
+    await sendNoteToTelegram(prefix + content, settings, channelId);
     return true;
   };
 

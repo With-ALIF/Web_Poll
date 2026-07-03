@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { TelegramSettings } from '../../../types';
 import { getChatDetails } from '../../quiz/services/telegramChatService';
+import { FIXED_BOT_TOKEN } from '../../quiz/constants';
 
 export function useChannelManager(
   settings: TelegramSettings,
-  setSettings: (settings: TelegramSettings) => void,
-  botToken: string
+  setSettings: (settings: TelegramSettings) => void
 ) {
   const [newChatId, setNewChatId] = useState('');
   const [chatInfo, setChatInfo] = useState<{ name: string; type: string } | null>(null);
@@ -20,7 +20,7 @@ export function useChannelManager(
     setChatInfo(null);
     
     try {
-      const details = await getChatDetails(newChatId, botToken);
+      const details = await getChatDetails(newChatId, FIXED_BOT_TOKEN);
       if (details) {
         const name = details.title || [details.first_name, details.last_name].filter(Boolean).join(' ') || 'Unknown';
         const newChannel = { id: newChatId.trim(), name, type: details.type };

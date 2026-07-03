@@ -1,6 +1,5 @@
 export type QuizQuestion = {
   id: string;
-  type?: 'poll' | 'header';
   question: string;
   options: string[];
   correctOptionIndex: number;
@@ -24,8 +23,6 @@ export type SavedText = {
 };
 
 export type TelegramSettings = {
-  botToken: string;
-  chatId?: string; // Legacy
   channels?: TelegramChannel[];
   activeChannelId?: string;
   selectedChannelIds?: string[];

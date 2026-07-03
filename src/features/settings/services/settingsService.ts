@@ -46,8 +46,6 @@ export const saveSettings = async (userId: string, settings: TelegramSettings) =
     
     // Explicitly pick fields that belong to the table schema to avoid failures due to extra JS-only fields
     const {
-      botToken,
-      chatId,
       channels,
       activeChannelId,
       selectedChannelIds,
@@ -60,8 +58,6 @@ export const saveSettings = async (userId: string, settings: TelegramSettings) =
     } = settings;
 
     const baseData = {
-      botToken,
-      chatId,
       channels: channels || [],
       activeChannelId,
       selectedChannelIds: selectedChannelIds || [],

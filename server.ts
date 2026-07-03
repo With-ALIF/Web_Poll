@@ -298,14 +298,30 @@ async function startServer() {
         return res.status(400).json({ error: "User ID is required." });
       }
 
+      const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+      const token = authHeader ? (authHeader as string).substring(7).trim() : '';
+
       const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
         auth: { autoRefreshToken: false, persistSession: false }
       });
 
+      const permObj = {
+        id: userId,
+        polls: (permissions || []).includes('polls'),
+        drafts: (permissions || []).includes('drafts'),
+        formats: (permissions || []).includes('formats'),
+        csv_modifier: (permissions || []).includes('csv-modifier'),
+        ocr: (permissions || []).includes('ocr'),
+        photocard: (permissions || []).includes('photocard'),
+        exam_paper: (permissions || []).includes('exam-paper'),
+        note: (permissions || []).includes('note'),
+        suffix_edit: (permissions || []).includes('suffix-edit'),
+        qbs: (permissions || []).includes('qbs'),
+      };
+
       const { error } = await supabaseAdmin
-        .from('profiles')
-        .update({ permissions })
-        .eq('id', userId);
+        .from('profile_permissions')
+        .upsert(permObj);
 
       if (error) throw error;
       res.status(200).json({ success: true });
@@ -368,13 +384,24 @@ async function startServer() {
         console.error("Warning: Profile record creation failed:", profileError.message);
       }
 
-      // 3. Save permissions into system_config
+      const permObj = {
+        id: createdUser.id,
+        polls: (permissions || []).includes('polls'),
+        drafts: (permissions || []).includes('drafts'),
+        formats: (permissions || []).includes('formats'),
+        csv_modifier: (permissions || []).includes('csv-modifier'),
+        ocr: (permissions || []).includes('ocr'),
+        photocard: (permissions || []).includes('photocard'),
+        exam_paper: (permissions || []).includes('exam-paper'),
+        note: (permissions || []).includes('note'),
+        suffix_edit: (permissions || []).includes('suffix-edit'),
+        qbs: (permissions || []).includes('qbs'),
+      };
+
+      // 3. Update permissions in profile_permissions
       const { error: permConfigError } = await supabaseAdmin
-        .from('system_config')
-        .upsert({
-          key: `permissions_${createdUser.id}`,
-          value: { permissions: permissions || [] }
-        }, { onConflict: 'key' });
+        .from('profile_permissions')
+        .upsert(permObj);
 
       if (permConfigError) {
         console.error("Warning: Permissions config creation failed:", permConfigError.message);
@@ -424,17 +451,7 @@ async function startServer() {
         console.warn("Warning: Profile record deletion failed or user has no profile:", profileError.message);
       }
 
-      // 2. Delete permissions from system_config
-      const { error: permConfigError } = await supabaseAdmin
-        .from('system_config')
-        .delete()
-        .eq('key', `permissions_${userId}`);
-
-      if (permConfigError) {
-        console.warn("Warning: Permissions config deletion failed:", permConfigError.message);
-      }
-
-      // 3. Delete from auth.users (use admin client)
+      // 2. Delete from auth.users (use admin client)
       const { error: deleteAuthError } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
       if (deleteAuthError) {
@@ -492,32 +509,44 @@ async function startServer() {
         auth: { autoRefreshToken: false, persistSession: false }
       });
 
-      // Fetch users from Auth
-      const { data: { users: authUsers }, error: authError } = await supabaseAdmin.auth.admin.listUsers();
-      if (authError) throw authError;
-
       // Fetch profiles from DB
       const { data: profiles, error: profileError } = await supabaseAdmin
         .from('profiles')
-        .select('*');
+        .select('*, profile_permissions(*)');
       
       if (profileError) throw profileError;
 
-      const profileMap = (profiles || []).reduce((acc: any, p: any) => {
-        acc[p.id] = p;
-        return acc;
-      }, {});
-
-      const mergedUsers = authUsers.map(u => {
-        const profile = profileMap[u.id] || {};
+      const mergedUsers = (profiles || [])
+        .map((profile: any) => {
+        const perms = [];
+        if (profile.profile_permissions) {
+          const p = Array.isArray(profile.profile_permissions) ? profile.profile_permissions[0] : profile.profile_permissions;
+          if (p) {
+            if (p.polls) perms.push('polls');
+            if (p.drafts) perms.push('drafts');
+            if (p.formats) perms.push('formats');
+            if (p.csv_modifier) perms.push('csv-modifier');
+            if (p.ocr) perms.push('ocr');
+            if (p.photocard) perms.push('photocard');
+            if (p.exam_paper) perms.push('exam-paper');
+            if (p.note) perms.push('note');
+            if (p.suffix_edit) perms.push('suffix-edit');
+            if (p.qbs) perms.push('qbs');
+          }
+        }
+        
         return {
-          ...u,
-          displayName: profile.display_name || u.user_metadata?.full_name || u.email?.split('@')[0] || 'Anonymous',
-          photoURL: profile.photo_url || u.user_metadata?.avatar_url || '',
+          id: profile.id,
+          email: profile.email || '',
+          displayName: profile.display_name || (profile.email ? profile.email.split('@')[0] : 'Anonymous'),
+          photoURL: profile.photo_url || '',
           role: profile.role || 'user',
-          permissions: profile.permissions || [],
-          stats: profile.stats || { generated: 0, sent: 0 },
-          createdAt: u.created_at ? { seconds: Math.floor(new Date(u.created_at).getTime() / 1000) } : { seconds: 0 }
+          permissions: perms,
+          stats: { 
+            generated: profile.total_generated || 0, 
+            sent: profile.total_sent || 0 
+          },
+          createdAt: profile.created_at ? { seconds: Math.floor(new Date(profile.created_at).getTime() / 1000) } : { seconds: 0 }
         };
       });
 
@@ -536,26 +565,92 @@ async function startServer() {
       }
 
       const { key, value } = req.body;
+      console.log("Saving config with body:", req.body);
       if (!key) {
         return res.status(400).json({ error: "Key is required." });
       }
 
-      const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-        auth: { autoRefreshToken: false, persistSession: false }
+      const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+      const token = authHeader ? (authHeader as string).substring(7).trim() : '';
+
+      // Use SERVICE_ROLE_KEY if available to bypass RLS (since we already verified admin via verifyAdmin), 
+      // otherwise fallback to ANON_KEY + User Token.
+      const useServiceRole = !!SUPABASE_SERVICE_ROLE_KEY;
+      const clientKey = useServiceRole ? SUPABASE_SERVICE_ROLE_KEY : SUPABASE_ANON_KEY;
+      
+      const supabaseAdmin = createClient(SUPABASE_URL, clientKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+        global: { headers: (!useServiceRole && token) ? { Authorization: `Bearer ${token}` } : {} }
       });
 
-      const { error } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from('system_config')
         .upsert({
           key,
-          value,
+          updated_by: value.updated_by || 'Admin',
+          default_suffix: value.default_suffix,
           updated_at: new Date().toISOString()
-        }, { onConflict: 'key' });
+        }, { onConflict: 'key' })
+        .select();
 
-      if (error) throw error;
-      res.status(200).json({ success: true });
+      if (error) {
+        console.error("Supabase upsert error:", error);
+        throw error;
+      }
+      
+      if (!data || data.length === 0) {
+        if (!useServiceRole) {
+           throw new Error("Failed to save configuration. RLS blocked the action. Please configure SUPABASE_SERVICE_ROLE_KEY in your env.");
+        }
+        throw new Error("Failed to save configuration. No data returned.");
+      }
+      
+      res.status(200).json({ success: true, data });
     } catch (err: any) {
       console.error("Error in /api/admin/save-config:", err);
+      res.status(500).json({ error: err.message || "Internal server error" });
+    }
+  });
+
+  app.get("/api/app-config", async (req, res) => {
+    try {
+      const keyToUse = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || SUPABASE_SERVICE_ROLE_KEY;
+      if (!keyToUse || !SUPABASE_URL) {
+        return res.json({
+          default_suffix: '{{  join: https://t.me/SOT_Academy}}',
+          updated_by: 'System',
+          updated_at: new Date().toISOString()
+        });
+      }
+
+      const supabaseAdmin = createClient(SUPABASE_URL, keyToUse, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      });
+      const { data, error } = await supabaseAdmin
+        .from('system_config')
+        .select('updated_by, default_suffix, updated_at')
+        .eq('key', 'config')
+        .single();
+      
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+      
+      if (!data) {
+        return res.json({
+          default_suffix: '{{  join: https://t.me/SOT_Academy}}',
+          updated_by: 'System',
+          updated_at: new Date().toISOString()
+        });
+      }
+
+      if (!data.default_suffix || data.default_suffix.trim() === '') {
+          data.default_suffix = '{{  join: https://t.me/SOT_Academy}}';
+      }
+
+      res.json(data);
+    } catch (err: any) {
+      console.error("Error in /api/app-config:", err);
       res.status(500).json({ error: err.message || "Internal server error" });
     }
   });

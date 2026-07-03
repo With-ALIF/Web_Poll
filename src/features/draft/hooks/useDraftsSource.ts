@@ -13,37 +13,37 @@ export function useDraftsSource() {
       setDrafts([]);
       return;
     }
-    const unsubscribe = subscribeToDrafts(user.uid, setDrafts);
+    const unsubscribe = subscribeToDrafts(user.id, setDrafts);
     return () => unsubscribe();
-  }, [user?.uid]);
+  }, [user?.id]);
 
   const moveToDraft = useCallback(async (question: QuizQuestion) => {
     if (!user) return;
-    await saveDraft(user.uid, question);
-  }, [user?.uid]);
+    await saveDraft(user.id, question);
+  }, [user?.id]);
 
   const moveManyToDraft = useCallback(async (questions: QuizQuestion[]) => {
     if (!user) return;
-    await batchSaveDrafts(user.uid, questions);
-  }, [user?.uid]);
+    await batchSaveDrafts(user.id, questions);
+  }, [user?.id]);
 
   const sendDraftToTelegram = useCallback(async (draft: QuizQuestion, sendFn: (q: QuizQuestion) => Promise<boolean>) => {
     if (!user) return;
     const success = await sendFn(draft);
     if (success) {
-      await saveQuiz(user.uid, { ...draft, status: 'sent' });
-      await deleteDraft(draft.id, user.uid);
+      await saveQuiz(user.id, { ...draft, status: 'sent' });
+      await deleteDraft(draft.id, user.id);
     }
-  }, [user?.uid]);
+  }, [user?.id]);
 
   const handleDeleteDraft = useCallback(async (id: string) => {
     if (!id) return;
     try {
-      await deleteDraft(id, user?.uid);
+      await deleteDraft(id, user?.id);
     } catch (error) {
       console.error('handleDeleteDraft error:', error);
     }
-  }, [user?.uid]);
+  }, [user?.id]);
 
   return useMemo(() => ({ 
     drafts, 

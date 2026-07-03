@@ -11,17 +11,17 @@ export default function AdminSuffixSettings() {
   const [suffixSuccessMsg, setSuffixSuccessMsg] = useState('');
 
   useEffect(() => {
-    if (appConfig?.defaultSuffix !== undefined) {
-      setLocalSuffix(appConfig.defaultSuffix);
+    if (appConfig?.default_suffix !== undefined) {
+      setLocalSuffix(appConfig.default_suffix);
     }
-  }, [appConfig?.defaultSuffix]);
+  }, [appConfig?.default_suffix]);
 
   const handleSaveSuffix = async () => {
     setSuffixSuccessMsg('');
-    const currentSuffix = appConfig?.defaultSuffix || '';
+    const currentSuffix = appConfig?.default_suffix || '';
     if (localSuffix === currentSuffix) {
-      const lastSavedTime = appConfig?.updatedAt 
-        ? new Date(appConfig.updatedAt.seconds ? appConfig.updatedAt.seconds * 1000 : appConfig.updatedAt).toLocaleString()
+      const lastSavedTime = appConfig?.updated_at 
+        ? new Date(appConfig.updated_at.seconds ? appConfig.updated_at.seconds * 1000 : appConfig.updated_at).toLocaleString()
         : new Date().toLocaleString();
       setSuffixSuccessMsg(`কোনো পরিবর্তন করা হয়নি, ইতিমধ্যেই সেভ করা আছে! (সর্বশেষ সেভ: ${lastSavedTime})`);
       setTimeout(() => setSuffixSuccessMsg(''), 5000);
@@ -32,9 +32,9 @@ export default function AdminSuffixSettings() {
     try {
       const now = new Date();
       const success = await saveAppConfig({
-        defaultSuffix: localSuffix,
-        updatedAt: now,
-        updatedBy: user?.email || 'admin'
+        default_suffix: localSuffix,
+        updated_at: now,
+        updated_by: user?.email || 'admin'
       });
       if (success) {
         setSuffixSuccessMsg(`সফলভাবে গ্লোবাল সাফিক্স সেভ করা হয়েছে! (সেভের সময়: ${now.toLocaleTimeString()})`);
@@ -93,9 +93,9 @@ export default function AdminSuffixSettings() {
 
         <div className="flex items-center justify-between gap-4 pt-4 border-t border-gray-100 flex-col sm:flex-row">
           <div className="text-xs text-gray-400">
-            {appConfig?.updatedAt && (
+            {appConfig?.updated_at && (
               <p className="font-medium">
-                সর্বশেষ আপডেট: {new Date(appConfig.updatedAt.seconds ? appConfig.updatedAt.seconds * 1000 : appConfig.updatedAt).toLocaleString()} ({appConfig.updatedBy || 'System'})
+                সর্বশেষ আপডেট: {new Date(appConfig.updated_at.seconds ? appConfig.updated_at.seconds * 1000 : appConfig.updated_at).toLocaleString()} ({appConfig.updated_by || 'System'})
               </p>
             )}
           </div>
@@ -103,7 +103,7 @@ export default function AdminSuffixSettings() {
           <div className="flex items-center gap-3 self-end sm:self-auto">
             <button
               type="button"
-              onClick={() => setLocalSuffix(appConfig?.defaultSuffix || '')}
+              onClick={() => setLocalSuffix(appConfig?.default_suffix || '')}
               className="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-bold transition-all cursor-pointer hover:shadow-sm"
             >
               রিসেট করুন

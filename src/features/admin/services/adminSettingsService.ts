@@ -4,31 +4,44 @@ const TABLE_NAME = 'system_config';
 const CONFIG_KEY = 'config';
 
 export interface AppConfig {
-  defaultSuffix: string;
-  updatedAt: any;
-  updatedBy: string;
+  default_suffix: string;
+  updated_at: any;
+  updated_by: string;
 }
 
 export const fetchAppConfig = async (): Promise<AppConfig | null> => {
   try {
-    const { data, error } = await supabase
-      .from(TABLE_NAME)
-      .select('value')
-      .eq('key', CONFIG_KEY)
-      .single();
-
-    if (error) throw error;
+    const response = await fetch('/api/app-config');
+    if (!response.ok) throw new Error("Failed to fetch app config");
+    const data = await response.json();
     
-    if (data && data.value) {
-      localStorage.setItem('app_config', JSON.stringify(data.value));
-      return data.value as AppConfig;
+    if (data) {
+      const config: AppConfig = {
+        updated_by: data.updated_by || 'System',
+        default_suffix: data.default_suffix || '{{  join: https://t.me/SOT_Academy}}',
+        updated_at: data.updated_at || new Date().toISOString()
+      };
+      localStorage.setItem('app_config', JSON.stringify(config));
+      return config;
     }
     return null;
   } catch (error: any) {
     console.error("Error fetching app config:", error);
     const cached = localStorage.getItem('app_config');
-    if (cached) return JSON.parse(cached);
-    return null;
+    if (cached) {
+        try {
+            const parsed = JSON.parse(cached);
+            if (!parsed.default_suffix || parsed.default_suffix.trim() === '') {
+                parsed.default_suffix = '{{  join: https://t.me/SOT_Academy}}';
+            }
+            return parsed;
+        } catch(e) {}
+    }
+    return {
+        updated_by: 'System',
+        default_suffix: '{{  join: https://t.me/SOT_Academy}}',
+        updated_at: new Date().toISOString()
+    };
   }
 };
 

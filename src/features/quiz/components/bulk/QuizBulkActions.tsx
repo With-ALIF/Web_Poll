@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Send, Trash2, Tag } from 'lucide-react';
+import { QUIZ_TOPICS } from '../../constants';
 
 interface QuizBulkActionsProps {
   totalQuestions: number;
@@ -52,19 +53,24 @@ export default function QuizBulkActions({
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 flex-1 sm:flex-none">
             <Tag className="w-3.5 h-3.5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Topic..."
+            <select
               value={bulkTopic}
               onChange={(e) => setBulkTopic(e.target.value)}
-              className="bg-transparent text-sm outline-none w-24 flex-1"
-            />
+              className="bg-transparent text-sm outline-none w-32 flex-1 cursor-pointer"
+            >
+              <option value="">Topic...</option>
+              {QUIZ_TOPICS.map(topic => (
+                <option key={topic} value={topic}>{topic}</option>
+              ))}
+            </select>
             <button
               onClick={() => {
-                onSetTopic(bulkTopic);
-                setBulkTopic('');
+                if (bulkTopic) {
+                  onSetTopic(bulkTopic);
+                  setBulkTopic('');
+                }
               }}
-              disabled={!bulkTopic.trim()}
+              disabled={!bulkTopic}
               className="text-xs font-semibold bg-indigo-100 text-indigo-700 hover:bg-indigo-200 px-2 py-1 rounded disabled:opacity-50"
             >
               Set

@@ -27,7 +27,6 @@ export const useUserRoutes = ({ appState }: UserRoutesProps) => {
               settings={settings.settings}
               setSettings={settings.setSettings}
               saveSettings={settings.saveSettings}
-              botToken={botToken}
               canEditSuffix={settings.canEditSuffix}
               globalDefaultSuffix={settings.globalDefaultSuffix}
               isLoading={settings.isLoading}

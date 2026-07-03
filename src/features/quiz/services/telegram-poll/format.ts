@@ -2,6 +2,7 @@ import { QuizQuestion, TelegramSettings } from "../../../../types";
 
 export function formatQuestionText(question: QuizQuestion, settings: TelegramSettings): string {
   let finalQuestion = question.question;
+  
   if (settings.questionPrefix?.trim()) {
     finalQuestion = `${settings.questionPrefix.trim()}\n${finalQuestion}`;
   }

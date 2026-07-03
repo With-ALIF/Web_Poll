@@ -15,6 +15,7 @@ export const fetchQuizzes = async (userId: string) => {
     // Need to map the database structure back to the QuizQuestion type
     const loadedQuestions = (data || []).map((q: any) => ({
       ...q,
+      options: [q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean),
       correctOptionIndex: q.correct_option_index,
     })) as unknown as QuizQuestion[];
 
@@ -65,9 +66,11 @@ export const saveQuiz = async (userId: string, question: QuizQuestion) => {
     const payload = cleanObj({
       id: question.id,
       user_id: userId,
-      type: question.type,
       question: question.question,
-      options: question.options,
+      option_a: question.options[0] || null,
+      option_b: question.options[1] || null,
+      option_c: question.options[2] || null,
+      option_d: question.options[3] || null,
       correct_option_index: question.correctOptionIndex,
       explanation: question.explanation,
       status: question.status,
@@ -103,9 +106,11 @@ export const batchSaveQuizzes = async (userId: string, questions: QuizQuestion[]
     const payloads = questions.map(q => cleanObj({
       id: q.id,
       user_id: userId,
-      type: q.type,
       question: q.question,
-      options: q.options,
+      option_a: q.options[0] || null,
+      option_b: q.options[1] || null,
+      option_c: q.options[2] || null,
+      option_d: q.options[3] || null,
       correct_option_index: q.correctOptionIndex,
       explanation: q.explanation,
       status: q.status,
@@ -126,9 +131,16 @@ export const updateUserStats = async (userId: string, stats: { generated: number
   try {
     const { data: profile } = await supabase.from('profiles').select('id').eq('id', userId).maybeSingle();
     if (!profile) {
-      await supabase.from('profiles').upsert({ id: userId, stats });
+      await supabase.from('profiles').upsert({ 
+        id: userId, 
+        total_generated: stats.generated,
+        total_sent: stats.sent
+      });
     } else {
-      const { error } = await supabase.from('profiles').update({ stats }).eq('id', userId);
+      const { error } = await supabase.from('profiles').update({ 
+        total_generated: stats.generated,
+        total_sent: stats.sent
+      }).eq('id', userId);
       if (error) throw error;
     }
   } catch (error) {
@@ -140,17 +152,14 @@ export const incrementUserStats = async (userId: string, deltas: { generated: nu
   try {
     const { data: profile, error: fetchError } = await supabase
       .from('profiles')
-      .select('stats, display_name, email, role, photo_url')
+      .select('total_generated, total_sent, display_name, email, role, photo_url')
       .eq('id', userId)
       .maybeSingle();
 
     if (fetchError) throw fetchError;
 
-    const currentStats = profile?.stats || { generated: 0, sent: 0 };
-    const newStats = {
-      generated: (currentStats.generated || 0) + deltas.generated,
-      sent: (currentStats.sent || 0) + deltas.sent
-    };
+    const newGenerated = ((profile?.total_generated || 0) + deltas.generated);
+    const newSent = ((profile?.total_sent || 0) + deltas.sent);
 
     if (!profile) {
       // Profile missing, upsert it
@@ -158,13 +167,17 @@ export const incrementUserStats = async (userId: string, deltas: { generated: nu
         .from('profiles')
         .upsert({
           id: userId,
-          stats: newStats
+          total_generated: newGenerated,
+          total_sent: newSent
         });
       if (insertError) throw insertError;
     } else {
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ stats: newStats })
+        .update({ 
+          total_generated: newGenerated,
+          total_sent: newSent 
+        })
         .eq('id', userId);
       if (updateError) throw updateError;
     }
@@ -177,7 +190,7 @@ export const subscribeToUserStats = (userId: string, callback: (stats: { generat
   // Fetch initial
   supabase
     .from('profiles')
-    .select('stats')
+    .select('total_generated, total_sent')
     .eq('id', userId)
     .single()
     .then(({ data }) => {
@@ -187,29 +200,40 @@ export const subscribeToUserStats = (userId: string, callback: (stats: { generat
         try { localStats = JSON.parse(localStatsRaw); } catch(e){}
       }
       
-      const remoteStats = data?.stats || { generated: 0, sent: 0 };
+      const remoteStats = {
+        generated: data?.total_generated || 0,
+        sent: data?.total_sent || 0
+      };
       
       // Auto-heal missing remote stats if local cache is strictly higher
       if (localStats.generated > remoteStats.generated || localStats.sent > remoteStats.sent) {
         const merged = {
-          generated: Math.max(localStats.generated, remoteStats.generated || 0),
-          sent: Math.max(localStats.sent, remoteStats.sent || 0)
+          generated: Math.max(localStats.generated, remoteStats.generated),
+          sent: Math.max(localStats.sent, remoteStats.sent)
         };
         console.log(`Auto-healing remote stats up to local cache for ${userId}:`, merged);
         updateUserStats(userId, merged);
         callback(merged);
         localStorage.setItem(`stats_${userId}`, JSON.stringify(merged));
-      } else if (data?.stats) {
-        localStorage.setItem(`stats_${userId}`, JSON.stringify(data.stats));
-        callback(data.stats);
+      } else if (data) {
+        const currentStats = {
+          generated: data.total_generated || 0,
+          sent: data.total_sent || 0
+        };
+        localStorage.setItem(`stats_${userId}`, JSON.stringify(currentStats));
+        callback(currentStats);
       }
     });
 
   const subscription = supabase
     .channel(`stats_${userId}`)
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${userId}` }, payload => {
-      if (payload.new && (payload.new as any).stats) {
-        const stats = (payload.new as any).stats;
+      if (payload.new) {
+        const newRaw = payload.new as any;
+        const stats = {
+          generated: newRaw.total_generated || 0,
+          sent: newRaw.total_sent || 0
+        };
         localStorage.setItem(`stats_${userId}`, JSON.stringify(stats));
         callback(stats);
       }

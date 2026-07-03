@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/admin/:action",
+      "destination": "/api/admin?action=:action"
+    },
+    {
       "source": "/api/quiz/generate",
       "destination": "/api/quiz"
     },

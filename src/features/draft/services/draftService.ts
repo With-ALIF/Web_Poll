@@ -33,6 +33,7 @@ export const fetchDraftsOnce = async (userId: string) => {
     // Need to map the database structure back to the QuizQuestion type
     const loadedDrafts = (data || []).map((q: any) => ({
       ...q,
+      options: [q.option_a, q.option_b, q.option_c, q.option_d].filter(Boolean),
       correctOptionIndex: q.correct_option_index,
     })) as unknown as QuizQuestion[];
 
@@ -112,9 +113,11 @@ export const saveDraft = async (userId: string, draft: QuizQuestion) => {
     const payload = cleanObj({
       id: draft.id,
       user_id: userId,
-      type: draft.type,
       question: draft.question,
-      options: draft.options,
+      option_a: draft.options[0] || null,
+      option_b: draft.options[1] || null,
+      option_c: draft.options[2] || null,
+      option_d: draft.options[3] || null,
       correct_option_index: draft.correctOptionIndex,
       explanation: draft.explanation,
       status: 'draft',
@@ -202,9 +205,11 @@ export const batchSaveDrafts = async (userId: string, drafts: QuizQuestion[]) =>
     const payloads = drafts.map(d => cleanObj({
       id: d.id,
       user_id: userId,
-      type: d.type,
       question: d.question,
-      options: d.options,
+      option_a: d.options[0] || null,
+      option_b: d.options[1] || null,
+      option_c: d.options[2] || null,
+      option_d: d.options[3] || null,
       correct_option_index: d.correctOptionIndex,
       explanation: d.explanation,
       status: 'draft',

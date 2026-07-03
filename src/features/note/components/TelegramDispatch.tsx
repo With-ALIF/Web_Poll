@@ -21,7 +21,7 @@ export function TelegramDispatch({
   onSend,
   fixedBotToken,
 }: TelegramDispatchProps) {
-  const hasBotToken = !!(settings.botToken || fixedBotToken);
+  const hasBotToken = !!fixedBotToken;
 
   return (
     <div className="bg-gradient-to-br from-indigo-50 to-blue-50/50 rounded-2xl p-5 border border-indigo-100/50 mt-4">

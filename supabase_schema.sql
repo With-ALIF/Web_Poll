@@ -6,7 +6,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   photo_url TEXT,
   role TEXT DEFAULT 'user' CHECK (role IN ('admin', 'user')),
   permissions JSONB DEFAULT '[]'::jsonb,
-  stats JSONB DEFAULT '{"generated": 0, "sent": 0}'::jsonb,
+  total_generated INT DEFAULT 0,
+  total_sent INT DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -27,14 +28,56 @@ DROP POLICY IF EXISTS "Users can update own profile." ON public.profiles;
 CREATE POLICY "Users can update own profile." ON public.profiles
   FOR UPDATE USING (auth.uid() = id);
 
-DROP POLICY IF EXISTS "Admins can update any profile." ON public.profiles;
-CREATE POLICY "Admins can update any profile." ON public.profiles
-  FOR UPDATE USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
-    )
-  );
+-- Function to check admin status
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+DECLARE
+  jwt_email TEXT;
+  profile_role TEXT;
+BEGIN
+  -- Check profile role first
+  SELECT role INTO profile_role FROM public.profiles WHERE id = auth.uid();
+  IF profile_role = 'admin' THEN
+    RETURN TRUE;
+  END IF;
+
+  -- Fallback: check JWT email
+  jwt_email := current_setting('request.jwt.claims', true)::jsonb ->> 'email';
+  IF jwt_email IN ('alifweb@gmail.com', 'alifbrur16@gmail.com') THEN
+    RETURN TRUE;
+  END IF;
+
+  RETURN FALSE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+-- Create Profile Permissions table
+CREATE TABLE IF NOT EXISTS public.profile_permissions (
+  id UUID REFERENCES public.profiles(id) ON DELETE CASCADE PRIMARY KEY,
+  polls BOOLEAN NOT NULL DEFAULT FALSE,
+  drafts BOOLEAN NOT NULL DEFAULT FALSE,
+  formats BOOLEAN NOT NULL DEFAULT FALSE,
+  csv_modifier BOOLEAN NOT NULL DEFAULT FALSE,
+  ocr BOOLEAN NOT NULL DEFAULT FALSE,
+  photocard BOOLEAN NOT NULL DEFAULT FALSE,
+  exam_paper BOOLEAN NOT NULL DEFAULT FALSE,
+  note BOOLEAN NOT NULL DEFAULT FALSE,
+  suffix_edit BOOLEAN NOT NULL DEFAULT FALSE,
+  qbs BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS for Profile Permissions
+ALTER TABLE public.profile_permissions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can view their own permissions." ON public.profile_permissions;
+CREATE POLICY "Users can view their own permissions." ON public.profile_permissions
+  FOR SELECT USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Admins can manage all permissions." ON public.profile_permissions;
+CREATE POLICY "Admins can manage all permissions." ON public.profile_permissions
+  FOR ALL USING (public.is_admin());
 
 -- Create Notes table
 CREATE TABLE IF NOT EXISTS public.notes (
@@ -71,13 +114,14 @@ CREATE POLICY "Users can delete their own notes." ON public.notes
 -- System Stats / Config (using a single record table or separate ones)
 CREATE TABLE IF NOT EXISTS public.system_config (
   key TEXT PRIMARY KEY,
-  value JSONB,
+  updated_by TEXT,
+  default_suffix TEXT,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Insert initial admin config if needed
-INSERT INTO public.system_config (key, value)
-VALUES ('config', '{"maintenanceMode": false, "registrationEnabled": true}')
+INSERT INTO public.system_config (key, default_suffix, updated_by)
+VALUES ('config', 'Generated via TeleQuiz', 'System')
 ON CONFLICT (key) DO NOTHING;
 
 -- System Config Policies
@@ -89,12 +133,7 @@ CREATE POLICY "System config viewable by everyone." ON public.system_config
 
 DROP POLICY IF EXISTS "Only admins can manage system config." ON public.system_config;
 CREATE POLICY "Only admins can manage system config." ON public.system_config
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
-    )
-  );
+  FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
 
 -- Quizzes table
 CREATE TABLE IF NOT EXISTS public.quizzes (
@@ -114,17 +153,21 @@ CREATE POLICY "Users can manage their own quizzes." ON public.quizzes
   FOR ALL USING (auth.uid() = user_id);
 
 -- NEW: Poll Questions table for individual questions
-CREATE TABLE IF NOT EXISTS public.poll_questions (
-  id TEXT PRIMARY KEY,
+DROP TABLE IF EXISTS public.poll_questions CASCADE;
+CREATE TABLE public.poll_questions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
-  type TEXT,
   question TEXT NOT NULL,
-  options JSONB,
+  option_a TEXT,
+  option_b TEXT,
+  option_c TEXT,
+  option_d TEXT,
   correct_option_index INT,
   explanation TEXT,
+  topic TEXT,
   status TEXT,
   image TEXT,
-  topic TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -132,15 +175,14 @@ ALTER TABLE public.poll_questions ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can manage their own poll questions." ON public.poll_questions;
 CREATE POLICY "Users can manage their own poll questions." ON public.poll_questions
-  FOR ALL USING (auth.uid() = user_id);
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 -- Settings table
 DROP TABLE IF EXISTS public.settings CASCADE;
 
 CREATE TABLE public.settings (
   user_id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
-  "botToken" TEXT,
-  "chatId" TEXT,
   channels JSONB DEFAULT '[]'::jsonb,
   "activeChannelId" TEXT,
   "selectedChannelIds" JSONB DEFAULT '[]'::jsonb,
@@ -163,16 +205,18 @@ CREATE POLICY "Users can manage their own settings." ON public.settings
 -- Drafts table
 DROP TABLE IF EXISTS public.drafts CASCADE;
 CREATE TABLE public.drafts (
-  id TEXT PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
-  type TEXT,
   question TEXT NOT NULL,
-  options JSONB,
+  option_a TEXT,
+  option_b TEXT,
+  option_c TEXT,
+  option_d TEXT,
   correct_option_index INT,
   explanation TEXT,
+  topic TEXT,
   status TEXT DEFAULT 'draft',
   image TEXT,
-  topic TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -181,12 +225,15 @@ ALTER TABLE public.drafts ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Users can manage their own drafts." ON public.drafts;
 CREATE POLICY "Users can manage their own drafts." ON public.drafts
-  FOR ALL USING (auth.uid() = user_id);
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
 -- System stats table
 CREATE TABLE IF NOT EXISTS public.system_stats (
   key TEXT PRIMARY KEY,
-  value JSONB,
+  user_count INT DEFAULT 0,
+  total_polls_sent INT DEFAULT 0,
+  total_polls_generated INT DEFAULT 0,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -198,12 +245,7 @@ CREATE POLICY "Allow reading system stats to everyone." ON public.system_stats
 
 DROP POLICY IF EXISTS "Allow updating system stats to admins." ON public.system_stats;
 CREATE POLICY "Allow updating system stats to admins." ON public.system_stats
-  FOR ALL USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE profiles.id = auth.uid() AND profiles.role = 'admin'
-    )
-  );
+  FOR ALL USING (public.is_admin());
 
 -- Function to handle new user creation
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -220,6 +262,10 @@ BEGIN
       ELSE 'user' 
     END
   );
+
+  INSERT INTO public.profile_permissions (id)
+  VALUES (NEW.id);
+
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

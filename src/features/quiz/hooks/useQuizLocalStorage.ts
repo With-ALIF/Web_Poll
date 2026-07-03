@@ -11,5 +11,5 @@ export function useQuizLocalStorage(
     if (!user) {
       localStorage.setItem('savedQuizzes', JSON.stringify(questions));
     }
-  }, [questions, user?.uid]);
+  }, [questions, user?.id]);
 }

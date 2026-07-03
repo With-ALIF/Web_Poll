@@ -3,7 +3,6 @@ import { supabase } from '../lib/supabase';
 import { User } from '@supabase/supabase-js';
 import { createUserProfile, signInWithEmail, signUpWithEmail, resetPassword } from '../features/auth/services/authService';
 import { ADMIN_EMAILS } from '../features/auth/constants';
-import { getUserPermissionsConfig } from '../features/admin/services/permissionHelper';
 
 interface AuthContextType {
   user: any | null;
@@ -65,14 +64,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Fetch profile
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('*')
+          .select('*, profile_permissions(*)')
           .eq('id', user.id)
           .single();
         
         if (profileError) throw profileError;
         
         if (profileData) {
-          const userPerms = profileData.permissions || await getUserPermissionsConfig(user.id) || [];
+          const perms = [];
+          if (profileData.profile_permissions) {
+            const p = Array.isArray(profileData.profile_permissions) ? profileData.profile_permissions[0] : profileData.profile_permissions;
+            if (p) {
+              if (p.polls) perms.push('polls');
+              if (p.drafts) perms.push('drafts');
+              if (p.formats) perms.push('formats');
+              if (p.csv_modifier) perms.push('csv-modifier');
+              if (p.ocr) perms.push('ocr');
+              if (p.photocard) perms.push('photocard');
+              if (p.exam_paper) perms.push('exam-paper');
+              if (p.note) perms.push('note');
+              if (p.suffix_edit) perms.push('suffix-edit');
+              if (p.qbs) perms.push('qbs');
+            }
+          }
+          const userPerms = perms;
           const enrichedProfile = { ...profileData, permissions: userPerms };
           localStorage.setItem(`profile_${user.id}`, JSON.stringify(enrichedProfile));
           setProfile(enrichedProfile);
@@ -88,16 +103,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Subscribe to profile changes
       try {
         profileSubscription = supabase
-          .channel(`profile_${user.id}`)
+          .channel(`profile_and_perms_${user.id}`)
           .on('postgres_changes', { 
             event: 'UPDATE', 
             schema: 'public', 
             table: 'profiles', 
             filter: `id=eq.${user.id}` 
-          }, async payload => {
+          }, payload => {
             if (payload.new) {
-              const userPerms = (payload.new as any).permissions || await getUserPermissionsConfig(user.id) || [];
-              setProfile({ ...(payload.new as any), permissions: userPerms });
+              setProfile((prev: any) => ({ ...prev, ...(payload.new as any) }));
+            }
+          })
+          .on('postgres_changes', { 
+            event: 'UPDATE', 
+            schema: 'public', 
+            table: 'profile_permissions', 
+            filter: `id=eq.${user.id}` 
+          }, payload => {
+            if (payload.new) {
+              const p = payload.new as any;
+              const perms = [];
+              if (p.polls) perms.push('polls');
+              if (p.drafts) perms.push('drafts');
+              if (p.formats) perms.push('formats');
+              if (p.csv_modifier) perms.push('csv-modifier');
+              if (p.ocr) perms.push('ocr');
+              if (p.photocard) perms.push('photocard');
+              if (p.exam_paper) perms.push('exam-paper');
+              if (p.note) perms.push('note');
+              if (p.suffix_edit) perms.push('suffix-edit');
+              if (p.qbs) perms.push('qbs');
+              
+              setProfile((prev: any) => ({ ...prev, permissions: perms }));
             }
           })
           .subscribe();
@@ -116,27 +153,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user?.id]);
 
   useEffect(() => {
-    // 1. Fetch App Config (Real-time listener for system_config)
+    // 1. Fetch App Config (via Server API)
     const fetchConfig = async () => {
       try {
-        const { data, error } = await supabase
-          .from('system_config')
-          .select('*')
-          .eq('key', 'config')
-          .single();
+        const response = await fetch('/api/app-config');
+        if (!response.ok) throw new Error("Failed to fetch app config");
+        const data = await response.json();
         
-        if (error) throw error;
-        
-        if (data && data.value) {
-          localStorage.setItem('app_config', JSON.stringify(data.value));
-          setAppConfig(data.value);
+        if (data) {
+          const config = {
+            updated_by: data.updated_by || 'System',
+            default_suffix: data.default_suffix || '{{  join: https://t.me/SOT_Academy}}',
+            updated_at: data.updated_at || new Date().toISOString()
+          };
+          localStorage.setItem('app_config', JSON.stringify(config));
+          setAppConfig(config);
         }
       } catch (err) {
-        console.warn("Could not load app configuration from Supabase.", err);
+        console.warn("Could not load app configuration from API. Using fallback.", err);
+        const fallbackConfig = {
+          updated_by: 'System',
+          default_suffix: '{{  join: https://t.me/SOT_Academy}}',
+          updated_at: new Date().toISOString()
+        };
+        const cached = localStorage.getItem('app_config');
+        if (!cached) {
+            setAppConfig(fallbackConfig);
+            localStorage.setItem('app_config', JSON.stringify(fallbackConfig));
+        } else {
+            try {
+                const parsed = JSON.parse(cached);
+                if (!parsed.default_suffix || parsed.default_suffix.trim() === '') {
+                    parsed.default_suffix = fallbackConfig.default_suffix;
+                    setAppConfig(parsed);
+                }
+            } catch (e) {
+                setAppConfig(fallbackConfig);
+            }
+        }
       }
     };
 
     fetchConfig();
+    
+    // Poll for updates every 30 seconds as real-time fallback
+    const intervalId = setInterval(fetchConfig, 30000);
 
     let configSubscription: any = null;
     try {
@@ -144,8 +205,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .channel('system_config_changes')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'system_config', filter: 'key=eq.config' }, payload => {
           const newData = (payload.new as any);
-          if (newData && newData.value) {
-            const newValue = newData.value;
+          if (newData) {
+            const newValue = {
+              updated_by: newData.updated_by,
+              default_suffix: newData.default_suffix,
+              updated_at: newData.updated_at
+            };
             localStorage.setItem('app_config', JSON.stringify(newValue));
             setAppConfig(newValue);
           }
@@ -156,6 +221,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     return () => {
+      clearInterval(intervalId);
       if (configSubscription) {
         supabase.removeChannel(configSubscription);
       }
