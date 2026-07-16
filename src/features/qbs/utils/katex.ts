@@ -1,4 +1,5 @@
 import katex from 'katex';
+import { correctAndNormalizeLatex } from './parser';
 
 export const preprocessMath = (math: string): string => {
   let processed = math;
@@ -79,7 +80,7 @@ export const preprocessMath = (math: string): string => {
 export const renderMathInHtml = (html: string | undefined | null): string => {
   if (!html) return '';
   
-  let processed = html;
+  let processed = correctAndNormalizeLatex(html);
 
   // 1. Process block math \[ ... \]
   processed = processed.replace(/\\\[(.*?)\\\]/gs, (_, math) => {
