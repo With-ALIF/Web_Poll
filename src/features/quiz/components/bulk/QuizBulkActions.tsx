@@ -11,6 +11,7 @@ interface QuizBulkActionsProps {
   onDraftSelected: () => void;
   handleDeleteSelected: () => void;
   onSetTopic: (topic: string) => void;
+  hideDelete?: boolean;
 }
 
 export default function QuizBulkActions({
@@ -21,7 +22,8 @@ export default function QuizBulkActions({
   onSendSelected,
   onDraftSelected,
   handleDeleteSelected,
-  onSetTopic
+  onSetTopic,
+  hideDelete
 }: QuizBulkActionsProps) {
   const [bulkTopic, setBulkTopic] = useState('');
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
@@ -88,32 +90,34 @@ export default function QuizBulkActions({
           >
             <Send className="w-4 h-4" /> Send ({selectedCount})
           </button>
-          {isConfirmingDelete ? (
-            <div className="flex items-center gap-1 bg-red-50 p-1 rounded-lg border border-red-100 shadow-sm">
-              <span className="text-xs font-bold text-red-700 px-2">Delete {selectedCount}?</span>
+          {!hideDelete && (
+            isConfirmingDelete ? (
+              <div className="flex items-center gap-1 bg-red-50 p-1 rounded-lg border border-red-100 shadow-sm">
+                <span className="text-xs font-bold text-red-700 px-2">Delete {selectedCount}?</span>
+                <button 
+                  onClick={() => setIsConfirmingDelete(false)}
+                  className="text-xs font-bold text-slate-600 hover:bg-white px-2 py-1 rounded transition-colors"
+                >
+                  No
+                </button>
+                <button 
+                  onClick={() => {
+                    handleDeleteSelected();
+                    setIsConfirmingDelete(false);
+                  }}
+                  className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-2 py-1 rounded transition-colors shadow-sm"
+                >
+                  Yes
+                </button>
+              </div>
+            ) : (
               <button 
-                onClick={() => setIsConfirmingDelete(false)}
-                className="text-xs font-bold text-slate-600 hover:bg-white px-2 py-1 rounded transition-colors"
+                onClick={() => setIsConfirmingDelete(true)}
+                className="text-sm px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 transition-all text-red-600 hover:text-red-700 hover:bg-red-50"
               >
-                No
+                <Trash2 className="w-4 h-4" /> Delete ({selectedCount})
               </button>
-              <button 
-                onClick={() => {
-                  handleDeleteSelected();
-                  setIsConfirmingDelete(false);
-                }}
-                className="text-xs font-bold text-white bg-red-600 hover:bg-red-700 px-2 py-1 rounded transition-colors shadow-sm"
-              >
-                Yes
-              </button>
-            </div>
-          ) : (
-            <button 
-              onClick={() => setIsConfirmingDelete(true)}
-              className="text-sm px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 transition-all text-red-600 hover:text-red-700 hover:bg-red-50"
-            >
-              <Trash2 className="w-4 h-4" /> Delete ({selectedCount})
-            </button>
+            )
           )}
         </div>
       )}

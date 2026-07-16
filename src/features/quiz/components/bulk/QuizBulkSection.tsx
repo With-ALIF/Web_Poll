@@ -11,6 +11,7 @@ interface QuizBulkSectionProps {
   onDraftSelected: () => void;
   handleDeleteSelected: () => void;
   onSetTopic: (topic: string) => void;
+  hideDelete?: boolean;
 }
 
 export default function QuizBulkSection({
@@ -21,7 +22,8 @@ export default function QuizBulkSection({
   onSendSelected,
   onDraftSelected,
   handleDeleteSelected,
-  onSetTopic
+  onSetTopic,
+  hideDelete
 }: QuizBulkSectionProps) {
   return (
     <QuizBulkActions 
@@ -33,6 +35,7 @@ export default function QuizBulkSection({
       onDraftSelected={onDraftSelected}
       handleDeleteSelected={handleDeleteSelected}
       onSetTopic={onSetTopic}
+      hideDelete={hideDelete}
     />
   );
 }

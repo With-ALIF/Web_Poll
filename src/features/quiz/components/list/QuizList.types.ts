@@ -30,4 +30,5 @@ export interface QuizListProps {
   bulkSendStatus?: string | null;
   canEditSuffix?: boolean;
   globalDefaultSuffix?: string;
+  hideDelete?: boolean;
 }

@@ -40,6 +40,7 @@ export default function QuizList({
   bulkSendStatus,
   canEditSuffix,
   globalDefaultSuffix,
+  hideDelete,
   className = ""
 }: QuizListProps) {
   const { selectedTopic, setSelectedTopic, filteredQuestions } = useQuizFilter(questions);
@@ -193,6 +194,7 @@ export default function QuizList({
         onDraftSelected={handleDraftSelected}
         handleDeleteSelected={handleDeleteSelected}
         onSetTopic={handleSetBulkTopic}
+        hideDelete={hideDelete}
       />
 
       <div className="space-y-4">
@@ -211,6 +213,7 @@ export default function QuizList({
               setEditingQuestionId={setEditingQuestionId}
               editingQuestion={editingQuestion}
               setEditingQuestion={setEditingQuestion}
+              hideDelete={hideDelete}
             />
           )}
         </AnimatePresence>

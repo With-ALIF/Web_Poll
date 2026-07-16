@@ -15,6 +15,7 @@ interface QuizListItemsProps {
   setEditingQuestionId: (id: string | null) => void;
   editingQuestion: QuizQuestion | null;
   setEditingQuestion: (q: QuizQuestion | null) => void;
+  hideDelete?: boolean;
 }
 
 export default function QuizListItems({
@@ -27,7 +28,8 @@ export default function QuizListItems({
   editingQuestionId,
   setEditingQuestionId,
   editingQuestion,
-  setEditingQuestion
+  setEditingQuestion,
+  hideDelete
 }: QuizListItemsProps) {
   return (
     <>
@@ -66,6 +68,7 @@ export default function QuizListItems({
               }}
               onDelete={() => removeQuestion(q.id)}
               handleSendToTelegram={handleSendToTelegram}
+              hideDelete={hideDelete}
             />
           )}
         </motion.div>

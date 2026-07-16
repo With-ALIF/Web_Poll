@@ -10,6 +10,7 @@ interface QuizCardProps {
   onEdit: () => void;
   onDelete: () => void;
   handleSendToTelegram: (id: string) => void;
+  hideDelete?: boolean;
 }
 
 export default function QuizCard({
@@ -18,7 +19,8 @@ export default function QuizCard({
   toggleSelection,
   onEdit,
   onDelete,
-  handleSendToTelegram
+  handleSendToTelegram,
+  hideDelete
 }: QuizCardProps) {
   const [isConfirming, setIsConfirming] = React.useState(false);
 
@@ -41,29 +43,31 @@ export default function QuizCard({
         >
           <Pencil className="w-4 h-4" />
         </button>
-        {isConfirming ? (
-          <div className="flex items-center gap-1 bg-white/80 backdrop-blur-sm rounded-xl shadow-sm border border-slate-200/60 p-1">
+        {!hideDelete && (
+          isConfirming ? (
+            <div className="flex items-center gap-1 bg-white/80 backdrop-blur-sm rounded-xl shadow-sm border border-slate-200/60 p-1">
+              <button
+                onClick={() => setIsConfirming(false)}
+                className="text-[10px] font-bold text-slate-500 hover:bg-slate-100 px-2 py-1 rounded-lg transition-colors"
+              >
+                No
+              </button>
+              <button
+                onClick={onDelete}
+                className="text-[10px] font-bold text-white bg-red-500 hover:bg-red-600 px-2 py-1 rounded-lg transition-colors"
+              >
+                Yes
+              </button>
+            </div>
+          ) : (
             <button
-              onClick={() => setIsConfirming(false)}
-              className="text-[10px] font-bold text-slate-500 hover:bg-slate-100 px-2 py-1 rounded-lg transition-colors"
+              onClick={() => setIsConfirming(true)}
+              className="text-red-400 hover:text-red-600 p-2 bg-white/80 backdrop-blur-sm rounded-xl shadow-sm border border-slate-200/60 transition-colors"
+              title="Delete Question"
             >
-              No
+              <Trash2 className="w-4 h-4" />
             </button>
-            <button
-              onClick={onDelete}
-              className="text-[10px] font-bold text-white bg-red-500 hover:bg-red-600 px-2 py-1 rounded-lg transition-colors"
-            >
-              Yes
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setIsConfirming(true)}
-            className="text-red-400 hover:text-red-600 p-2 bg-white/80 backdrop-blur-sm rounded-xl shadow-sm border border-slate-200/60 transition-colors"
-            title="Delete Question"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          )
         )}
       </div>
       

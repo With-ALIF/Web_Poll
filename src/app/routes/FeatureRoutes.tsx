@@ -118,6 +118,7 @@ export const useFeatureRoutes = ({ appState, handleDraftSelected }: FeatureRoute
                 sentLabel="Total Poll"
                 sentValue={sentQuestions.length}
                 showGeneratedStat={false}
+                hideDelete={true}
               />
             </div>
           </ProtectedRoute>
