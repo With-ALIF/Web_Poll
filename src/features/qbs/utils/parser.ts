@@ -93,94 +93,126 @@ function parseFractions(str: string): string {
 }
 
 export function convertAsciiMathToTex(ascii: string): string {
+  if (!ascii) return '';
   let tex = ascii;
 
+  // Rule 31: Clean HTML entities first
   tex = tex.replace(/&nbsp;/g, ' ');
   tex = tex.replace(/&amp;/g, '&');
   tex = tex.replace(/&lt;/g, '<');
   tex = tex.replace(/&gt;/g, '>');
   tex = tex.replace(/&quot;/g, '"');
 
+  // Rule 2: Remove any HTML tags that might have leaked into math
+  tex = tex.replace(/<[^>]+>/g, '');
+
+  // Rule 5: Square Root
+  tex = tex.replace(/√\s*([a-zA-Z0-9]+)/g, '\\sqrt{$1}');
+  tex = tex.replace(/√\s*\(([^)]+)\)/g, '\\sqrt{$1}');
+  tex = tex.replace(/sqrt\s*([a-zA-Z0-9]+)/g, '\\sqrt{$1}');
   tex = replaceMatchingParentheses(tex, 'sqrt', '\\sqrt');
+
+  // Rule 4: Fraction
   tex = parseFractions(tex);
 
-  // Process vector notations
-  tex = tex.replace(/vec\(([a-zA-Z])\)/g, '\\vec{$1}');
-  tex = tex.replace(/vec([a-zA-Z])/g, '\\vec{$1}');
-  tex = tex.replace(/ul\(([a-zA-Z])\)/g, '\\underline{$1}');
-  tex = tex.replace(/ul([a-zA-Z])/g, '\\underline{$1}');
-  tex = tex.replace(/hat\(([a-zA-Z])\)/g, '\\hat{$1}');
-  tex = tex.replace(/hat([a-zA-Z])/g, '\\hat{$1}');
-  tex = tex.replace(/bar\(([a-zA-Z])\)/g, '\\bar{$1}');
-  tex = tex.replace(/bar([a-zA-Z])/g, '\\bar{$1}');
+  // Rule 4b: Exponents (including negative ones)
+  // Ensure exponents use braces e.g. T^-2 -> T^{-2}
+  tex = tex.replace(/\^([-+]?[a-zA-Z0-9]+)/g, (match, p1) => {
+    return `^{${p1}}`;
+  });
+  // Clean up potential double braces from previous logic
+  tex = tex.replace(/\^\{\{([^\}]+)\}\}/g, '^{$1}');
+
+  // Rule 18 & 19: Vector notations and Unit vectors
+  tex = tex.replace(/vec\s*\(\s*([a-zA-Z])\s*\)/g, '\\vec{$1}');
+  tex = tex.replace(/vec\s*([a-zA-Z])/g, '\\vec{$1}');
+  tex = tex.replace(/ul\s*\(\s*([a-zA-Z])\s*\)/g, '\\underline{$1}');
+  tex = tex.replace(/ul\s*([a-zA-Z])/g, '\\underline{$1}');
+  tex = tex.replace(/hat\s*\(\s*([a-zA-Z])\s*\)/g, '\\hat{$1}');
+  tex = tex.replace(/hat\s*([a-zA-Z])/g, '\\hat{$1}');
+  
+  // Rule 20: Overline
+  tex = tex.replace(/bar\s*\(\s*([a-zA-Z])\s*\)/g, '\\bar{$1}');
+  tex = tex.replace(/bar\s*([a-zA-Z])/g, '\\bar{$1}');
+
+  // Rule 27: Cross product
   tex = tex.replace(/\*/g, '\\times');
+  tex = tex.replace(/×/g, '\\times');
+
+  // Rule 26: Dot product
+  tex = tex.replace(/\b\.\b/g, '\\cdot'); // Only if it looks like a math dot
 
   const symbolsMap: { [key: string]: string } = {
-    'theta': '\\theta',
-    'alpha': '\\alpha',
-    'beta': '\\beta',
-    'gamma': '\\gamma',
-    'delta': '\\delta',
-    'epsilon': '\\epsilon',
-    'zeta': '\\zeta',
-    'eta': '\\eta',
-    'iota': '\\iota',
-    'kappa': '\\kappa',
-    'lambda': '\\lambda',
-    'mu': '\\mu',
-    'nu': '\\nu',
-    'xi': '\\xi',
-    'omicron': '\\omicron',
-    'pi': '\\pi',
-    'rho': '\\rho',
-    'sigma': '\\sigma',
-    'tau': '\\tau',
-    'upsilon': '\\upsilon',
-    'phi': '\\phi',
-    'chi': '\\chi',
-    'psi': '\\psi',
-    'omega': '\\omega',
-    'Theta': '\\Theta',
-    'Delta': '\\Delta',
-    'Lambda': '\\Lambda',
-    'Phi': '\\Phi',
-    'Psi': '\\Psi',
-    'Omega': '\\Omega',
-    'sin': '\\sin',
-    'cos': '\\cos',
-    'tan': '\\tan',
-    'sec': '\\sec',
-    'csc': '\\csc',
-    'cot': '\\cot',
-    'sinh': '\\sinh',
-    'cosh': '\\cosh',
-    'tanh': '\\tanh',
-    'log': '\\log',
-    'ln': '\\ln',
+    // Rule 11: Greek Letters
+    'theta': '\\theta', 'alpha': '\\alpha', 'beta': '\\beta', 'gamma': '\\gamma',
+    'delta': '\\delta', 'epsilon': '\\epsilon', 'zeta': '\\zeta', 'eta': '\\eta',
+    'iota': '\\iota', 'kappa': '\\kappa', 'lambda': '\\lambda', 'mu': '\\mu',
+    'nu': '\\nu', 'xi': '\\xi', 'omicron': '\\omicron', 'pi': '\\pi',
+    'rho': '\\rho', 'sigma': '\\sigma', 'tau': '\\tau', 'upsilon': '\\upsilon',
+    'phi': '\\phi', 'chi': '\\chi', 'psi': '\\psi', 'omega': '\\omega',
+    'Theta': '\\Theta', 'Delta': '\\Delta', 'Lambda': '\\Lambda', 'Phi': '\\Phi',
+    'Psi': '\\Psi', 'Omega': '\\Omega',
+    
+    // Rule 12: Trigonometric functions
+    'sin': '\\sin', 'cos': '\\cos', 'tan': '\\tan', 'sec': '\\sec',
+    'csc': '\\csc', 'cot': '\\cot', 'sinh': '\\sinh', 'cosh': '\\cosh', 'tanh': '\\tanh',
+    
+    // Rule 14: Log
+    'log': '\\log', 'ln': '\\ln',
+    
+    // Rule 7: Limit
     'lim': '\\lim',
-    'int': '\\int ',
-    'oint': '\\oint',
-    'sum': '\\sum',
-    'prod': '\\prod',
-    'grad': '\\nabla',
-    'del': '\\partial',
-    'oo': '\\infty',
+    
+    // Rule 6: Integral
+    'int': '\\int ', 'oint': '\\oint',
+    
+    // Rule 8 & 9: Summation and Product
+    'sum': '\\sum', 'prod': '\\prod',
+    
+    // Rule 25: Nabla
+    'grad': '\\nabla', 'nabla': '\\nabla',
+    
+    // Rule 24: Partial
+    'del': '\\partial', 'partial': '\\partial',
+    
+    // Rule 10: Infinity
+    'oo': '\\infty', 'infinity': '\\infty',
+    
+    // Rule 27: Cross
     'xx': '\\times',
-    '==': '=',
-    '!=': '\\ne',
-    '<=': '\\le',
-    '>=': '\\ge',
-    '+-': '\\pm',
-    '->': '\\rightarrow',
-    '<-': '\\leftarrow',
-    '=>': '\\Rightarrow'
+    
+    // Rule 22: Arrow
+    '->': '\\to', '-->': '\\to', '<-': '\\leftarrow', '=>': '\\Rightarrow',
+    
+    // Rule 23: Proportional
+    'prop': '\\propto', 'propto': '\\propto',
+    
+    // Other relations
+    '==': '=', '!=': '\\ne', '<=': '\\le', '>=': '\\ge', '+-': '\\pm'
   };
 
-  Object.keys(symbolsMap).forEach(key => {
+  // Sort keys by length descending to match longer patterns first
+  const sortedKeys = Object.keys(symbolsMap).sort((a, b) => b.length - a.length);
+
+  sortedKeys.forEach(key => {
     const escapedKey = key.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-    const regex = new RegExp(`\\b${escapedKey}\\b`, 'g');
-    tex = tex.replace(regex, symbolsMap[key]);
+    // If it's a word-like symbol, use word boundaries
+    if (/^[a-zA-Z]+$/.test(key)) {
+      const regex = new RegExp(`(?<!\\\\)\\b${key}\\b`, 'g');
+      tex = tex.replace(regex, symbolsMap[key]);
+    } else {
+      tex = tex.replace(new RegExp(escapedKey, 'g'), symbolsMap[key]);
+    }
   });
+
+  // Rule 13: Inverse Trig
+  tex = tex.replace(/\\(sin|cos|tan|sec|csc|cot)\^{-1}/g, '\\$1^{-1}');
+  
+  // Rule 28: Degree
+  tex = tex.replace(/°/g, '^\\circ');
+
+  // Rule 30: Scientific notation (e.g. 4x10^4)
+  tex = tex.replace(/(\d+)\s*[xX]\s*10\^/g, '$1\\times 10^');
 
   return tex;
 }
@@ -190,7 +222,29 @@ export function correctAndNormalizeLatex(html: string): string {
 
   let processed = html;
 
-  // Step 1: Temporarily extract HTML tags so we don't touch their attributes or contents (like src, href, class)
+  // Rule 33: Fix misplaced delimiters (Math must NEVER wrap HTML)
+  // This is a pre-emptive fix for already broken inputs
+  processed = processed.replace(/\$<(p|strong|span|b|i|em|sup|sub|div|li|td|th)>([\s\S]*?)<\/\1>\$/g, '<$1>$$$2$</$1>');
+  processed = processed.replace(/\$<(p|strong|span|b|i|em|sup|sub|div|li|td|th)>([\s\S]*?)\$/g, '<$1>$$$2$');
+  processed = processed.replace(/\$([\s\S]*?)<\/(p|strong|span|b|i|em|sup|sub|div|li|td|th)>\$/g, '$$$1$</$2>');
+
+  // Also catch the reversed case: <p>...$</p>$
+  processed = processed.replace(/(<[^>]+>[\s\S]*?)\$<\/[^>]+>\$/g, (match) => {
+    return match.replace(/\$<\//, '</').replace(/>\$/, '>$');
+  });
+
+  // Rule 34: Fix nested <p> tags
+  processed = processed.replace(/<p>\s*<p>/g, '<p>').replace(/<\/p>\s*<\/p>/g, '</p>');
+  
+  // Rule 34: Fix basic broken HTML
+  processed = processed.replace(/<p>([^<]*)$/g, '<p>$1</p>');
+
+  // Step 1: Pre-process non-standard tags like <sup> and <sub> into LaTeX if they are likely math
+  // Rule 3: <sup>2</sup> -> ^2, <sub>0</sub> -> _0
+  processed = processed.replace(/<sup>(.*?)<\/sup>/g, '^$1');
+  processed = processed.replace(/<sub>(.*?)<\/sub>/g, '_$1');
+
+  // Step 2: Temporarily extract HTML tags so we don't touch their attributes or contents
   const htmlPlaceholders: string[] = [];
   processed = processed.replace(/(<[^>]+>)/g, (match) => {
     const placeholder = `__HTML_PLACEHOLDER_${htmlPlaceholders.length}__`;
@@ -198,194 +252,160 @@ export function correctAndNormalizeLatex(html: string): string {
     return placeholder;
   });
 
-  // Step 2: Temporarily extract existing math blocks wrapped in $$...$$, $...$, \(...\), \[...\]
-  const mathPlaceholders: string[] = [];
+  // Step 3: Handle Unicode Greek and Math symbols in text before wrapping
+  const unicodeMap: { [key: string]: string } = {
+    'θ': '\\theta', 'α': '\\alpha', 'β': '\\beta', 'λ': '\\lambda', 'ω': '\\omega',
+    'δ': '\\delta', 'μ': '\\mu', 'π': '\\pi', 'η': '\\eta', 'γ': '\\gamma',
+    'Σ': '\\sum', 'Π': '\\prod', '∞': '\\infty', '∫': '\\int', '∇': '\\nabla',
+    '∂': '\\partial', '∝': '\\propto', '→': '\\to', '×': '\\times', '·': '\\cdot',
+    '±': '\\pm', '≠': '\\ne', '≤': '\\le', '≥': '\\ge', '≈': '\\approx'
+  };
+  Object.keys(unicodeMap).forEach(char => {
+    processed = processed.replace(new RegExp(char, 'g'), ` $${unicodeMap[char]}$ `);
+  });
+
+  // Rule 20: Character-based overline X̄ -> \bar X
+  processed = processed.replace(/([a-zA-Z0-9])\u0304/g, ' $\\bar $1$ ');
+  processed = processed.replace(/([a-zA-Z0-9])\u0305/g, ' $\\overline $1$ ');
+  processed = processed.replace(/([a-zA-Z0-9])\u0302/g, ' $\\hat $1$ ');
+
+  // Rule 29: Unicode chemical notation H₂SO₄ -> H_2SO_4
+  const subMap: { [key: string]: string } = {
+    '₀': '_0', '₁': '_1', '₂': '_2', '₃': '_3', '₄': '_4',
+    '₅': '_5', '₆': '_6', '₇': '_7', '₈': '_8', '₉': '_9'
+  };
+  const supMap: { [key: string]: string } = {
+    '⁰': '^0', '¹': '^1', '²': '^2', '³': '^3', '⁴': '^4',
+    '⁵': '^5', '⁶': '^6', '⁷': '^7', '⁸': '^8', '⁹': '^9',
+    '⁺': '^+', '⁻': '^-'
+  };
+  Object.keys(subMap).forEach(c => processed = processed.replace(new RegExp(c, 'g'), subMap[c]));
+  Object.keys(supMap).forEach(c => processed = processed.replace(new RegExp(c, 'g'), supMap[c]));
+
+  // Step 3.5: Wrap common math patterns in plain text BEFORE adding placeholders or splitting
+  // This prevents splitting like $ \pi $/2 or [ML^2T^-2]
   
-  // First extract display math $$...$$ or \[...\]
+  // A. Dimensions [ML^2T^-2]
+  processed = processed.replace(/\[\s*[MLT][^\]]*\]/g, (match) => {
+    if (match.includes('<') || match.includes('>')) return match;
+    return `$${match}$`;
+  });
+  
+  // B. Common math expressions (including fractions with Greek or variables)
+  const mathExprRegex = /\b(?:alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|rho|sigma|tau|phi|omega|[a-zA-Z0-9])\s*[\/^=<>!]\s*(?:alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|rho|sigma|tau|phi|omega|[a-zA-Z0-9\(\)])+\b/g;
+  processed = processed.replace(mathExprRegex, (match) => {
+    if (match.includes('<') || match.includes('>')) return match;
+    // Avoid double wrapping if it's already near $
+    return `$${match}$`;
+  });
+
+  // Step 4: Temporarily extract existing math blocks
+  const mathPlaceholders: string[] = [];
   processed = processed.replace(/(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\])/g, (match) => {
     const placeholder = `__MATH_PLACEHOLDER_${mathPlaceholders.length}__`;
     mathPlaceholders.push(match);
     return placeholder;
   });
 
-  // Next extract inline math $...$ or \(...\)
   processed = processed.replace(/(\$[^\$\n]+\$|\\\([\s\S]*?\\\))/g, (match) => {
-    const placeholder = `__MATH_PLACEHOLDER_${mathPlaceholders.length}__`;
+    const placeholder = `__MATH_PLACE_INLINE_${mathPlaceholders.length}__`;
     mathPlaceholders.push(match);
     return placeholder;
   });
 
-  // Step 3: Now we have only plain text containing Bengali and non-wrapped math/chemical formulas.
-  // We want to detect and wrap plain math/chemical/Greek formulas with $...$.
-
-  // A. Match Matrix patterns like [[1,2],[3,-4]]
+  // Step 5: Detect and wrap plain text math
+  // Rule 16 & 17: Matrix patterns [[1,2],[3,-4]]
   processed = processed.replace(/(\[\[\s*.*?\s*\]\])/g, '$$1$');
 
-  // B. Match Chemical Formulas and Ions in plain text:
-  // e.g. H2O, CO2, CaCl2, H2SO4, CH4, Na2O, CaO, NaCl, Na+, Cl-, Mg2+, SO42-
+  // Rule 29: Chemical formulas
   const chemicalRegex = /\b(?:H2O|CO2|CaCl2|Na2O|CaO|H2SO4|CH4|O2|O3|N2|H2|Cl2|NaCl|HCl|HNO3|NaOH|KOH|Ca\(OH\)2|Al\(OH\)3|Al2O3|Fe2O3|Fe3O4|CuSO4|ZnSO4|MgSO4|CaCO3|NaHCO3|Na2CO3|K2CO3|NH3|PCl5|PCl3|SO2|SO3|H2S)\b/g;
   processed = processed.replace(chemicalRegex, '$$$&');
 
-  const chemicalIonsRegex = /\b(?:Na\+|Cl-|Mg2\+|Ca2\+|SO42-|CO32-|NH4\+|NO3-|OH-|H3O\+)\b/g;
-  processed = processed.replace(chemicalIonsRegex, '$$$&');
+  // Rule 18: Vector patterns like A->
+  processed = processed.replace(/\b([a-zA-Z])\s*->\b/g, '$\\vec $1$');
 
-  // General chemical formula with subscript pattern
-  const generalChemRegex = /\b([HCONSPK]|Cl|Na|Ca|Mg|Fe|Cu|Al|Ag|Zn)([2-9])([HCONSPK]|Cl|Na|Ca|Mg|Fe|Cu|Al|Ag|Zn)?([2-9])?\b/g;
-  processed = processed.replace(generalChemRegex, (match) => {
-    return `$${match}$`;
-  });
+  // Rule 15: Exponential e^x
+  processed = processed.replace(/\be\^([a-zA-Z0-9]+)/g, '$e^{$1}$');
 
-  // C. Match Plain Math equations/expressions:
-  // e.g. cos(A) = 0, A = (2n+1)π/2, F = 8hati - 2hatj, x = y, x + y = z, x2 + y2
-  const mathRelationRegex = /\b(?:[a-zA-Z_]\w*\s*[-+*/=<>!]+\s*[a-zA-Z0-9_\(\)]+|[a-zA-Z_]\w*\s*=\s*[a-zA-Z0-9_\(\)]+)\b/g;
+  // Rule 21: Composition gof
+  processed = processed.replace(/\b([a-z])\s*o\s*([a-z])\b/g, '$$1\\circ $2$');
+
+  // Rule 30: Scientific notation 4x10^4
+  processed = processed.replace(/(\d+)\s*[xX]\s*10\^/g, '$$1\\times 10^$');
+
+  // General math relation regex
+  const mathRelationRegex = /\b(?:[a-zA-Z_]\w*\s*[-+*/^=<>!]+\s*[a-zA-Z0-9_\(\)]+|[a-zA-Z_]\w*\s*=\s*[a-zA-Z0-9_\(\)]+)\b/g;
   processed = processed.replace(mathRelationRegex, (match) => {
+    if (match.includes('<') || match.includes('>')) return match;
     if (/^[a-zA-Z]+$/.test(match) || /^\d+$/.test(match)) return match;
+    if (match.includes('$')) return match;
     return `$${match}$`;
   });
 
-  // D. Match isolated Greek letters and formulas containing Greek letters:
-  // e.g. λ, λ/2, λ/4, 2λ, π, θ, α, β, γ, ω, μ
-  const greekMathRegex = /\b(?:\d*[λπθαβγωμ]\d*(?:\/\d+)?|[λπθαβγωμ])\b/g;
-  processed = processed.replace(greekMathRegex, '$$$&');
-
-  // E. Match isolated math variables with superscripts:
-  // e.g. x2, y3, n2 (lowercase variable followed by digit)
-  const mathSuperscriptRegex = /\b([a-wy-z])([2-9])\b/g;
-  processed = processed.replace(mathSuperscriptRegex, '$$$1^$2$');
-
-  // F. Match math functions without backslashes in plain text:
-  // e.g. sin2x, tan^(-1)x, sin(x), cos(x), tan(x), log(x), ln(x), lim_(x->0), int_0^1
-  const mathFuncRegex = /\b(?:sin|cos|tan|log|ln|lim|int|sqrt|arc\s*tan|arctan)\s*(?:\^?[0-9\-]+|\([^\)]+\)|_[^\s]+|[a-zA-Z0-9])*/g;
-  processed = processed.replace(mathFuncRegex, (match) => {
-    if (!match.trim()) return match;
-    return `$${match}$`;
+  // Greek letter words in text - only if not part of already wrapped math
+  const greekWords = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'theta', 'lambda', 'mu', 'pi', 'rho', 'sigma', 'tau', 'phi', 'omega'];
+  greekWords.forEach(word => {
+    const regex = new RegExp(`(?<![\\$\\w])${word}(?![\\$\\w])`, 'g');
+    processed = processed.replace(regex, `$ \\${word} $`);
   });
 
-  // G. Match overline/bar in plain text:
-  // e.g. ¯X, barX, bar(X)
-  const plainBarRegex = /(?:¯\s*[a-zA-Z0-9]|bar\s*\(\s*[a-zA-Z0-9]\s*\)|bar\s*[a-zA-Z0-9])/g;
-  processed = processed.replace(plainBarRegex, '$$$&');
+  // Restore math and apply corrections
+  const allMathRegex = /(__MATH_PLACEHOLDER_|__MATH_PLACE_INLINE_|\\\(|\\\[|\$)/g;
+  
+  // Actually, it's easier to just restore them and THEN run a pass on all $...$ and $$...$$
+  processed = processed.replace(/__MATH_PLACEHOLDER_(\d+)__/g, (_, idx) => mathPlaceholders[Number(idx)]);
+  processed = processed.replace(/__MATH_PLACE_INLINE_(\d+)__/g, (_, idx) => mathPlaceholders[Number(idx)]);
 
-  // H. Match vector/underline in plain text:
-  // e.g. ulF, ul(F), vecF, vec(F)
-  const plainVecRegex = /(?:ul\s*\(\s*[a-zA-Z0-9]\s*\)|ul\s*[a-zA-Z0-9]|vec\s*\(\s*[a-zA-Z0-9]\s*\)|vec\s*[a-zA-Z0-9])/g;
-  processed = processed.replace(plainVecRegex, '$$$&');
+  // Pull trailing superscripts/subscripts back into math blocks (e.g. $...$^-1 -> $...^{-1}$)
+  // More aggressive match for superscripts and subscripts
+  processed = processed.replace(/\$([^\$\n]+)\$\^([\s]*\{?[a-zA-Z0-9\-\+]+\}?)/g, '$$$1^{$2}$');
+  processed = processed.replace(/\$([^\$\n]+)\$_([\s]*\{?[a-zA-Z0-9\-\+]+\}?)/g, '$$$1_{$2}$');
+  
+  // Clean up double braces and extra spaces
+  processed = processed.replace(/\^\{\s*\{([^\}]+)\}\s*\}/g, '^{$1}');
+  processed = processed.replace(/\_\{\s*\{([^\}]+)\}\s*\}/g, '_{$1}');
 
-  // Step 4: Restore math placeholders
-  processed = processed.replace(/__MATH_PLACEHOLDER_(\d+)__/g, (_, idx) => {
-    return mathPlaceholders[Number(idx)];
-  });
+  // Final Step: Deep Correction on ALL math expressions
+  processed = processed.replace(/\$\$([\s\S]*?)\$\$|\\\[([\s\S]*?)\\\]|\$([^\$\n]+)\$|\\\(([\s\S]*?)\\\)/g, (match, d1, d2, i1, i2) => {
+    const isBlock = !!(d1 || d2);
+    let mathContent = (d1 || d2 || i1 || i2 || '').trim();
+    
+    let corrected = convertAsciiMathToTex(mathContent);
 
-  // Step 5: Deep Correction on ALL math expressions inside $...$ and $$...$$
-  processed = processed.replace(/\$\$([\s\S]*?)\$\$|\$([^\$\n]+)\$/g, (match, blockMath, inlineMath) => {
-    const isBlock = !!blockMath;
-    let mathContent = (isBlock ? blockMath : inlineMath) || '';
+    // Unit normalization (e.g. Jm^-2 -> J\,m^{-2}, S^-1 -> s^{-1})
+    // Ensure symbols like J, m, s, N, T, S are treated as units with proper spacing
+    // Normalize S to s for seconds and ensure proper superscript wrapping
+    corrected = corrected.replace(/([JmNsTS])\s*m\^?\{?(-?\d+)\}?/g, '$1\\,m^{$2}');
+    corrected = corrected.replace(/m\^?\{?(-?\d+)\}?\s*[sS]\^?\{?(-?\d+)\}?/g, 'm^{$1}\\,s^{$2}');
+    corrected = corrected.replace(/([JmNsTS])\s*[sS]\^?\{?(-?\d+)\}?/g, '$1\\,s^{$2}');
+    
+    // Normalize units
+    corrected = corrected.replace(/\\,S/g, '\\,s').replace(/\{S\}/g, '{s}');
+    
+    // Rule 35: Robust Brace matching to prevent broken LaTeX like S}^{-1}
+    let balance = 0;
+    let result = '';
+    for (let i = 0; i < corrected.length; i++) {
+      if (corrected[i] === '{') balance++;
+      if (corrected[i] === '}') {
+        if (balance > 0) {
+          balance--;
+        } else {
+          continue; // Skip extra closing brace
+        }
+      }
+      result += corrected[i];
+    }
+    while (balance > 0) {
+      result += '}';
+      balance--;
+    }
+    corrected = result;
 
-    // Let's run our comprehensive LaTeX Correction Rules on mathContent
-    let corrected = mathContent.trim();
+    // Rule: Never allow HTML inside corrected math
+    corrected = corrected.replace(/<[^>]+>/g, '').replace(/__HTML_PLACEHOLDER_\d+__/g, '');
 
-    // Clean HTML entities
-    corrected = corrected.replace(/&nbsp;/g, ' ');
-    corrected = corrected.replace(/&amp;/g, '&');
-    corrected = corrected.replace(/&lt;/g, '<');
-    corrected = corrected.replace(/&gt;/g, '>');
-    corrected = corrected.replace(/&quot;/g, '"');
-
-    // Rule 19: Greek Word/Letter Conversion
-    const greekWords: { [key: string]: string } = {
-      'omega': '\\omega',
-      'mu': '\\mu',
-      'alpha': '\\alpha',
-      'beta': '\\beta',
-      'theta': '\\theta',
-      'pi': '\\pi',
-      'lambda': '\\lambda',
-      'gamma': '\\gamma',
-      'delta': '\\delta',
-      'epsilon': '\\epsilon',
-    };
-    Object.keys(greekWords).forEach(word => {
-      const regex = new RegExp(`(?<!\\\\)\\b${word}\\b`, 'g');
-      corrected = corrected.replace(regex, greekWords[word]);
-    });
-
-    const greekCharMap: { [key: string]: string } = {
-      'λ': '\\lambda',
-      'π': '\\pi',
-      'θ': '\\theta',
-      'α': '\\alpha',
-      'β': '\\beta',
-      'γ': '\\gamma',
-      'ω': '\\omega',
-      'μ': '\\mu',
-    };
-    Object.keys(greekCharMap).forEach(char => {
-      corrected = corrected.replace(new RegExp(char, 'g'), greekCharMap[char]);
-    });
-
-    // Rule 1: Square Root (√)
-    corrected = corrected.replace(/√\s*([a-zA-Z0-9]+)/g, '\\sqrt{$1}');
-    corrected = corrected.replace(/√\s*\(([^)]+)\)/g, '\\sqrt{$1}');
-    corrected = corrected.replace(/sqrt\s*([a-zA-Z0-9]+)/g, '\\sqrt{$1}');
-    corrected = replaceMatchingParentheses(corrected, 'sqrt', '\\sqrt');
-
-    // Rule 2: Fraction (ভগ্নাংশ)
-    corrected = parseFractions(corrected);
-    corrected = corrected.replace(/\\frac\{([^{}]+(?:\([^{}]*\)|\{[^{}]*\})*[^{}]*)\{([^{}]+)\}\}/g, '\\frac{$1}{$2}');
-
-    // Rule 20: Overline / Bar
-    corrected = corrected.replace(/¯\s*([a-zA-Z0-9]+)/g, '\\overline{$1}');
-    corrected = corrected.replace(/bar\s*\(\s*([a-zA-Z0-9]+)\s*\)/g, '\\bar{$1}');
-    corrected = corrected.replace(/bar\s*([a-zA-Z0-9]+)/g, '\\bar{$1}');
-
-    // Rule 11: Vector
-    corrected = corrected.replace(/vec\s*\(\s*([a-zA-Z])\s*\)/g, '\\vec{$1}');
-    corrected = corrected.replace(/vec\s*([a-zA-Z])/g, '\\vec{$1}');
-    corrected = corrected.replace(/ul\s*\(\s*([a-zA-Z])\s*\)/g, '\\underline{$1}');
-    corrected = corrected.replace(/ul\s*([a-zA-Z])/g, '\\underline{$1}');
-    corrected = corrected.replace(/\bd\s*l\b/g, 'd\\vec{l}');
-    corrected = corrected.replace(/\bd\s*r\b/g, 'd\\vec{r}');
-    corrected = corrected.replace(/\bd\s*S\b/g, 'd\\vec{S}');
-
-    // Rule 12 & 13: Nabla Operator, Dot and Cross Product
-    corrected = corrected.replace(/∇/g, '\\nabla');
-    corrected = corrected.replace(/\\nabla\s*\.\s*([a-zA-Z]|\\vec\{[a-zA-Z]\})/g, '\\nabla\\cdot\\vec{$1}');
-    corrected = corrected.replace(/\\nabla\s*x\s*([a-zA-Z]|\\vec\{[a-zA-Z]\})/g, '\\nabla\\times\\vec{$1}');
-    corrected = corrected.replace(/\\nabla\s*\\times\s*([a-zA-Z]|\\vec\{[a-zA-Z]\})/g, '\\nabla\\times\\vec{$1}');
-    corrected = corrected.replace(/\\vec\{([a-zA-Z])\}\s*\.\s*(?:d\\vec\{([a-zA-Z])\}|([a-zA-Z]+))/g, '\\vec{$1}\\cdot d\\vec{$2}');
-    corrected = corrected.replace(/\\vec\{([a-zA-Z])\}\s*(?:\*|x|\\times)\s*(?:d\\vec\{([a-zA-Z])\}|([a-zA-Z]+))/g, '\\vec{$1}\\times d\\vec{$2}');
-    corrected = corrected.replace(/\*/g, '\\times');
-
-    // Rule 5 & 6: Trigonometric and Inverse Trigonometric Functions
-    const mathFuncNames = ['sin', 'cos', 'tan', 'sec', 'csc', 'cot', 'sinh', 'cosh', 'tanh', 'log', 'ln', 'lim', 'sum', 'prod'];
-    mathFuncNames.forEach(func => {
-      const regex = new RegExp(`(?<!\\\\)\\b${func}\\b`, 'g');
-      corrected = corrected.replace(regex, `\\${func}`);
-    });
-
-    corrected = corrected.replace(/\\(sin|cos|tan|sec|csc|cot)\s*\^?\s*\(\s*-\s*1\s*\)\s*([a-zA-Z0-9]*)/g, '\\$1^{-1}$2');
-    corrected = corrected.replace(/arc\s*tan/g, '\\arctan');
-    corrected = corrected.replace(/arc\s*sin/g, '\\arcsin');
-    corrected = corrected.replace(/arc\s*cos/g, '\\arccos');
-    corrected = corrected.replace(/\\arctan\s*([a-zA-Z0-9]+)/g, '\\arctan $1');
-    corrected = corrected.replace(/\\(sin|cos|tan|sec|csc|cot)\s*([2-9])\s*([a-zA-Z0-9]+)/g, '\\$1^$2 $3');
-
-    // Rule 7: Limit
-    corrected = corrected.replace(/\\lim\s*(?:_\s*(?:\(?\s*([a-zA-Z0-9]+)\s*(?:->|\\to|\\rightarrow|to)\s*([a-zA-Z0-9]+)\s*\)?|\{\s*([a-zA-Z0-9]+)\s*(?:->|\\to|\\rightarrow|to)\s*([a-zA-Z0-9]+)\s*\}))/g, (_, p1, p2, p3, p4) => {
-      const v1 = p1 || p3 || 'x';
-      const v2 = p2 || p4 || '0';
-      return `\\lim_{${v1}\\to ${v2}}`;
-    });
-
-    // Rule 8: Integral
-    corrected = corrected.replace(/\\int\s*(?:_\s*([a-zA-Z0-9]+)\s*\^\s*([a-zA-Z0-9]+)|_\s*\{([^\}]+)\}\s*\^\s*\{([^\}]+)\})/g, (_, l1, h1, l2, h2) => {
-      const low = l1 || l2 || '0';
-      const high = h1 || h2 || '1';
-      return `\\int_{${low}}^{${high}}`;
-    });
-    corrected = corrected.replace(/(?<!\\)int\b/g, '\\int');
-
-    // Rule 9 & 10: Matrix & Determinant Format
+    // Rule 16 & 17: Complex Matrix / Determinant
     if (corrected.includes('[[') && corrected.includes(']]')) {
       corrected = corrected.replace(/\[\s*(\[[^\]]+\](?:\s*,\s*\[[^\]]+\])*)\s*\]/g, (_, rowsStr) => {
         const rows = rowsStr.split(/\s*\]\s*,\s*\[\s*/).map((r: string) => {
@@ -399,62 +419,40 @@ export function correctAndNormalizeLatex(html: string): string {
       });
     }
 
-    // Rule 14, 15: Chemical Formulas & Ion Charges
-    corrected = corrected.replace(/\b([A-Z][a-z]?)([2-9])\b/g, '$1_$2');
-    corrected = corrected.replace(/\b([A-Z][a-z]?)([2-9])([A-Z][a-z]?)([2-9])\b/g, '$1_$2$3_$4');
-    corrected = corrected.replace(/\b([A-Z][a-z]?)([2-9])([A-Z][a-z]?)([2-9])([A-Z][a-z]?)([2-9])\b/g, '$1_$2$3_$4$5_$6');
-    corrected = corrected.replace(/\bH2SO4\b/g, 'H_2SO_4');
-    corrected = corrected.replace(/\bCaCO3\b/g, 'CaCO_3');
-    corrected = corrected.replace(/\bNa2CO3\b/g, 'Na_2CO_3');
-    corrected = corrected.replace(/\bCH3COOH\b/g, 'CH_3COOH');
-    corrected = corrected.replace(/\bC2H5OH\b/g, 'C_2H_5OH');
-    corrected = corrected.replace(/\bC6H12O6\b/g, 'C_6H_{12}O_6');
+    // Rule 15: Exponential e^x
+    corrected = corrected.replace(/(?<!\\)e\^([a-zA-Z0-9])/g, 'e^{$1}');
 
-    corrected = corrected.replace(/\b([A-Z][a-z]?)\s*([2-9])\s*\+/g, '$1^{$2+}');
-    corrected = corrected.replace(/\b([A-Z][a-z]?)\s*\+\s*([2-9])\b/g, '$1^{$2+}');
-    corrected = corrected.replace(/\b([A-Z][a-z]?)\s*\+/g, '$1^+');
-    corrected = corrected.replace(/\b([A-Z][a-z]?)\s*([2-9])\s*-/g, '$1^{$2-}');
-    corrected = corrected.replace(/\b([A-Z][a-z]?)\s*-\s*([2-9])\b/g, '$1^{$2-}');
-    corrected = corrected.replace(/\b([A-Z][a-z]?)\s*-/g, '$1^-');
+    // Rule 35: Brace matching
+    let openCount = (corrected.match(/\{/g) || []).length;
+    let closeCount = (corrected.match(/\}/g) || []).length;
+    while (openCount > closeCount) { corrected += '}'; closeCount++; }
+    while (closeCount > openCount) { corrected = corrected.replace(/\}$/, ''); closeCount--; }
 
-    corrected = corrected.replace(/\bSO42-\b/g, 'SO_4^{2-}');
-    corrected = corrected.replace(/\bSO_42-\b/g, 'SO_4^{2-}');
-    corrected = corrected.replace(/\bCO32-\b/g, 'CO_3^{2-}');
-    corrected = corrected.replace(/\bCO_32-\b/g, 'CO_3^{2-}');
-    corrected = corrected.replace(/\bNH4\+\b/g, 'NH_4^+');
-    corrected = corrected.replace(/\bNH_4\+\b/g, 'NH_4^+');
-    corrected = corrected.replace(/\bNO3-\b/g, 'NO_3^-');
-    corrected = corrected.replace(/\bNO_3-\b/g, 'NO_3^-');
-
-    // Rule 16: Nuclear Notation
-    corrected = corrected.replace(/\^(\d+)_(?:\s*)(\d+)\s*([a-zA-Z]{1,2})/g, '{}^{$1}_{$2}$3');
-    corrected = corrected.replace(/_(\d+)\^(\d+)\s*([a-zA-Z]{1,2})/g, '{}^{$2}_{$1}$3');
-    corrected = corrected.replace(/\((?:\s*)(\d+)\s*\/\s*(\d+)\s*\)\s*([a-zA-Z]{1,2})/g, '{}^{$1}_{$2}$3');
-    corrected = corrected.replace(/\[(?:\s*)(\d+)\s*\/\s*(\d+)\s*\]\s*([a-zA-Z]{1,2})/g, '{}^{$1}_{$2}$3');
-
-    // Rule 17: Chemical Equation arrow
-    if ((corrected.includes('_') || corrected.includes('^')) && !/[xyzf]/i.test(corrected)) {
-      corrected = corrected.replace(/=/g, '\\rightarrow');
-    }
-    corrected = corrected.replace(/(?:->|-->)/g, '\\rightarrow');
-
-    // Rule 18: Equation Bracket \left( \right)
-    corrected = corrected.replace(/\(\s*(\\frac\{[^\}]+\}\{[^\}]+\})\s*\)/g, '\\left($1\\right)');
-    corrected = corrected.replace(/\(\s*([^\(\)]+?\/[^\(\)]+?)\s*\)/g, '\\left($1\\right)');
-
-    // Rule 3: Math Variable Superscripts
-    corrected = corrected.replace(/\b([a-wy-z])([2-9])\b/g, '$1^$2');
+    // Rule 32: Ensure valid KaTeX (basic escape)
+    corrected = corrected.replace(/\\([#&_%])/g, '\\$1');
 
     return isBlock ? `$$${corrected}$$` : `$${corrected}$`;
   });
 
-  // Step 6: Restore HTML placeholders
-  processed = processed.replace(/__HTML_PLACEHOLDER_(\d+)__/g, (_, idx) => {
-    return htmlPlaceholders[Number(idx)];
-  });
+  // Specific cleanup for cases where $ were nested or broken
+  processed = processed.replace(/\$\$+/g, '$');
+  processed = processed.replace(/\$\s*\$/g, '');
 
-  return processed;
+  // Restore HTML
+  processed = processed.replace(/__HTML_PLACEHOLDER_(\d+)__/g, (_, idx) => htmlPlaceholders[Number(idx)]);
+
+  // FINAL SAFETY: Never allow $ to wrap HTML tags
+  processed = processed.replace(/\$<(p|strong|span|b|i|em|sup|sub|div|li|td|th)>([\s\S]*?)<\/\1>\$/g, '<$1>$$$2$</$1>');
+  processed = processed.replace(/\$<(p|strong|span|b|i|em|sup|sub|div|li|td|th)>/g, '<$1>$');
+  processed = processed.replace(/<\/(p|strong|span|b|i|em|sup|sub|div|li|td|th)>\$/g, '</$1>');
+  
+  // Clean up any double $ or empty $ created by the safety logic
+  processed = processed.replace(/\$\$+/g, '$');
+  processed = processed.replace(/\$\s*\$/g, '');
+
+  return processed.trim();
 }
+
 
 const cleanMathHtml = (element: HTMLElement) => {
   // 1. Process MathJax script tags first (MathJax v2 style, supporting tex, asciimath, etc.)
@@ -871,7 +869,8 @@ export const parseHtmlToMcqs = (htmlInput: string): MCQData[] => {
       type_id,
       paper_id,
       chapter_id,
-      topic_id
+      topic_id,
+      sequence_order: String(results.length + 1)
     });
   });
 
@@ -879,13 +878,14 @@ export const parseHtmlToMcqs = (htmlInput: string): MCQData[] => {
 };
 
 export const generateCsvFromMcqs = (results: MCQData[]): string => {
-  const header = 'question,question_image,option_1,option_1_image,option_2,option_2_image,option_3,option_3_image,option_4,option_4_image,option_5,option_5_image,correct_options,explanation,explanation_image,type_id,paper_id,chapter_id,topic_id';
+  const header = 'question,question_image,option_1,option_1_image,option_2,option_2_image,option_3,option_3_image,option_4,option_4_image,option_5,option_5_image,correct_options,explanation,explanation_image,type_id,paper_id,chapter_id,topic_id,sequence_order';
   
   const escapeCSV = (str: string) => {
     return str.replace(/"/g, '""');
   };
   
-  const rows = results.map(row => {
+  const rows = results.map((row, index) => {
+    const seqOrder = row.sequence_order || String(index + 1);
     return [
       `"${escapeCSV(row.question)}"`,
       `"${escapeCSV(row.question_image)}"`,
@@ -905,7 +905,8 @@ export const generateCsvFromMcqs = (results: MCQData[]): string => {
       `"${escapeCSV(row.type_id)}"`,
       `"${escapeCSV(row.paper_id)}"`,
       `"${escapeCSV(row.chapter_id)}"`,
-      `"${escapeCSV(row.topic_id)}"`
+      `"${escapeCSV(row.topic_id)}"`,
+      seqOrder
     ].join(',');
   });
   

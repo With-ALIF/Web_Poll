@@ -18,4 +18,5 @@ export interface MCQData {
   paper_id: string;
   chapter_id: string;
   topic_id: string;
+  sequence_order?: string;
 }

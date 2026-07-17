@@ -36,7 +36,8 @@ export default function MCQPreviewCard({ item, index, onUpdate, onDelete }: MCQP
     item.option_3_image,
     item.option_4_image,
     item.option_5_image,
-    item.explanation_image
+    item.explanation_image,
+    item.sequence_order
   ]);
 
   const handleSave = () => {
@@ -114,7 +115,7 @@ export default function MCQPreviewCard({ item, index, onUpdate, onDelete }: MCQP
         </div>
 
         {/* Tags Row */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div>
             <label className="block text-xs font-black text-slate-700 mb-1">Paper ID</label>
             <input
@@ -143,6 +144,16 @@ export default function MCQPreviewCard({ item, index, onUpdate, onDelete }: MCQP
               onChange={(e) => setEditedItem(prev => ({ ...prev, topic_id: e.target.value }))}
               placeholder="e.g. ভৌত আলোকবিজ্ঞান"
               className="w-full px-3 py-1.5 border-2 border-slate-200 rounded-lg focus:border-indigo-500 focus:outline-none text-xs font-bold"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-black text-slate-700 mb-1">Sequence Order</label>
+            <input
+              type="text"
+              value={editedItem.sequence_order || ''}
+              onChange={(e) => setEditedItem(prev => ({ ...prev, sequence_order: e.target.value }))}
+              placeholder={String(index + 1)}
+              className="w-full px-3 py-1.5 border-2 border-slate-200 rounded-lg focus:border-indigo-500 focus:outline-none text-xs font-bold font-mono"
             />
           </div>
         </div>
@@ -326,6 +337,11 @@ export default function MCQPreviewCard({ item, index, onUpdate, onDelete }: MCQP
         {item.topic_id && (
           <span className="bg-slate-100 text-slate-700 border border-slate-200 font-bold text-[10px] px-2 py-0.5 rounded-md">
             Topic: {item.topic_id}
+          </span>
+        )}
+        {item.sequence_order && (
+          <span className="bg-amber-50 text-amber-700 border border-amber-200 font-mono font-bold text-[10px] px-2 py-0.5 rounded-md">
+            Order: {item.sequence_order}
           </span>
         )}
       </div>
