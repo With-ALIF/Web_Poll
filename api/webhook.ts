@@ -1,7 +1,7 @@
 import TelegramBot from 'node-telegram-bot-api';
 
-const BOT_TOKEN = "8783681142:AAGcPnAIVZ6L4ivQQFqNC2hFIq0uZmtC51U";
-const bot = new TelegramBot(BOT_TOKEN);
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
+const bot = BOT_TOKEN ? new TelegramBot(BOT_TOKEN) : null;
 
 const welcomeMessage = (chatId: string) => `👋 স্বাগতম!
 
@@ -25,6 +25,10 @@ const welcomeMessage = (chatId: string) => `👋 স্বাগতম!
 
 export default async function handler(req: any, res: any) {
   if (req.method === 'POST') {
+    if (!bot) {
+      console.error("TELEGRAM_BOT_TOKEN environment variable is missing.");
+      return res.status(500).send("TELEGRAM_BOT_TOKEN is missing");
+    }
     try {
       const update = req.body;
       console.log("Webhook update:", JSON.stringify(update));

@@ -182,7 +182,7 @@ export function convertAsciiMathToTex(ascii: string): string {
     'xx': '\\times',
     
     // Rule 22: Arrow
-    '->': '\\to', '-->': '\\to', '<-': '\\leftarrow', '=>': '\\Rightarrow',
+    '->': '\\to', '-->': '\\to', '<-': '\\leftarrow', '=>': '\\Rightarrow', 'implies': '\\implies', 'impliedby': '\\impliedby',
     
     // Rule 23: Proportional
     'prop': '\\propto', 'propto': '\\propto',
@@ -539,7 +539,242 @@ const cleanMathHtml = (element: HTMLElement) => {
   });
 };
 
+export function convertMathyToLatex(htmlStr: string): string {
+  if (!htmlStr) return '';
+  
+  // Replace <span class="mathy">...</span> with $...$
+  let processed = htmlStr.replace(/<span\s+class=["']mathy["']>([\s\S]*?)<\/span>/gi, (_, inner) => {
+    const tex = convertAsciiMathToTex(inner.trim());
+    return `$${tex}$`;
+  });
+  
+  // Replace <p class="mathy">...</p> with <p>$...$</p>
+  processed = processed.replace(/<p\s+class=["']mathy["']>([\s\S]*?)<\/p>/gi, (_, inner) => {
+    const tex = convertAsciiMathToTex(inner.trim());
+    return `<p>$${tex}$</p>`;
+  });
+  
+  return processed;
+}
+
+export function ensureMathWrapping(html: string): string {
+  if (!html) return '';
+  if (html.includes('$')) return html;
+  
+  // If the HTML has some math indicators like /, ^, √, or Greek letters, we should wrap the content of tags in $
+  const hasMath = /[\/^√°]|alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|rho|sigma|tau|phi|omega/i.test(html);
+  if (hasMath) {
+    // Wrap the text inside tags, e.g. <p>R/(√5 - 1)</p> -> <p>$R/(√5 - 1)$</p>
+    // Let's replace the inner text of tags with $...$
+    return html.replace(/(<[^>]+>)([^<]+)(<\/[^>]+>)/g, (match, open, content, close) => {
+      if (content.trim() === '' || content.includes('$')) return match;
+      return `${open}$${content.trim()}$${close}`;
+    });
+  }
+  return html;
+}
+
+export function parseCSV(text: string): string[][] {
+  const result: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let inQuotes = false;
+  
+  // Clean carriage returns
+  const cleanedText = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  
+  let i = 0;
+  while (i < cleanedText.length) {
+    const char = cleanedText[i];
+    const nextChar = cleanedText[i + 1];
+    
+    if (inQuotes) {
+      if (char === '"') {
+        if (nextChar === '"') {
+          // Escaped quote
+          cell += '"';
+          i += 2;
+        } else {
+          // End of quote
+          inQuotes = false;
+          i++;
+        }
+      } else {
+        cell += char;
+        i++;
+      }
+    } else {
+      if (char === '"') {
+        inQuotes = true;
+        i++;
+      } else if (char === ',') {
+        row.push(cell);
+        cell = '';
+        i++;
+      } else if (char === '\n') {
+        row.push(cell);
+        result.push(row);
+        row = [];
+        cell = '';
+        i++;
+      } else {
+        cell += char;
+        i++;
+      }
+    }
+  }
+  
+  if (cell || row.length > 0) {
+    row.push(cell);
+    result.push(row);
+  }
+  
+  return result;
+}
+
+const finalizeMCQ = (raw: any, seq: number): MCQData => {
+  // Convert mathy syntax in question, explanation, and options first
+  let rawQ = convertMathyToLatex(raw.question);
+  let rawExp = convertMathyToLatex(raw.explanation);
+  
+  // Ensure math wrapping if any simple expression is missed
+  rawQ = ensureMathWrapping(rawQ);
+  rawExp = ensureMathWrapping(rawExp);
+  
+  const cleanQ = correctAndNormalizeLatex(rawQ);
+  const cleanExp = correctAndNormalizeLatex(rawExp);
+  
+  const optionsData = Array.from({ length: 5 }, () => ({ text: '', image: '' }));
+  const correctIndices: number[] = [];
+  
+  raw.options.slice(0, 5).forEach((opt: any, idx: number) => {
+    let optText = convertMathyToLatex(opt.text);
+    optText = ensureMathWrapping(optText);
+    
+    // Strip bullet points like ক. খ. etc. if any
+    optText = optText.replace(/^\s*[কখগঘঙচছজঝঞটঠডঢণতথদধনপফবভমযরলশষসহঅআইঈউঊঋএঐওঔA-Za-z1-2-3-4-5A-Ea-e]\s*[\dots\.-–—]\s*/, '');
+    optText = optText.trim();
+    
+    optionsData[idx] = {
+      text: correctAndNormalizeLatex(optText),
+      image: ''
+    };
+    if (opt.isCorrect) {
+      correctIndices.push(idx + 1);
+    }
+  });
+  
+  return {
+    question: cleanQ,
+    question_image: raw.question_image || '',
+    option_1: optionsData[0].text,
+    option_1_image: optionsData[0].image,
+    option_2: optionsData[1].text,
+    option_2_image: optionsData[1].image,
+    option_3: optionsData[2].text,
+    option_3_image: optionsData[2].image,
+    option_4: optionsData[3].text,
+    option_4_image: optionsData[3].image,
+    option_5: optionsData[4].text,
+    option_5_image: optionsData[4].image,
+    correct_options: correctIndices.join(','),
+    explanation: cleanExp,
+    explanation_image: raw.explanation_image || '',
+    type_id: raw.type_id || '',
+    paper_id: raw.paper_id || '',
+    chapter_id: raw.chapter_id || '',
+    topic_id: raw.topic_id || '',
+    sequence_order: String(seq)
+  };
+};
+
+export const parseNewQbsFormat = (text: string): MCQData[] => {
+  const rows = parseCSV(text);
+  const results: MCQData[] = [];
+  
+  let currentMCQ: any = null;
+  
+  for (let rowIndex = 0; rowIndex < rows.length; rowIndex++) {
+    const row = rows[rowIndex].map(cell => cell.trim());
+    if (row.length === 1 && row[0] === '') {
+      continue;
+    }
+    
+    // A question row has at least 3 elements, and row[1] is a number/ID and row[2] is a word/code (like 'one', 'two')
+    const isQuestionRow = row.length >= 3 && /^\d+$/.test(row[1]) && /^[a-zA-Z0-9_-]+$/.test(row[2]);
+    
+    if (isQuestionRow) {
+      if (currentMCQ) {
+        results.push(finalizeMCQ(currentMCQ, results.length + 1));
+      }
+      
+      let questionHtml = row[0];
+      let paper_id = '';
+      let chapter_id = '';
+      
+      const bracketMatch = questionHtml.match(/\[\s*([pP])\s*[-.]\s*(\d+)(?:\.(\d+))?/);
+      if (bracketMatch) {
+        paper_id = `${bracketMatch[1].toLowerCase()}${bracketMatch[2]}`;
+        if (bracketMatch[3]) {
+          chapter_id = bracketMatch[3];
+        }
+      }
+      
+      currentMCQ = {
+        question: questionHtml,
+        question_image: '',
+        explanation: row[3] || '',
+        explanation_image: '',
+        type_id: '',
+        paper_id,
+        chapter_id,
+        topic_id: '',
+        options: []
+      };
+    } else {
+      if (currentMCQ) {
+        let isCorrect = false;
+        let optionText = '';
+        
+        if (row.length >= 2) {
+          isCorrect = row[0] === '*';
+          optionText = row.slice(1).join(',');
+        } else if (row.length === 1) {
+          if (row[0].startsWith('*')) {
+            isCorrect = true;
+            optionText = row[0].substring(1);
+            if (optionText.startsWith(',')) {
+              optionText = optionText.substring(1);
+            }
+          } else {
+            optionText = row[0];
+            if (optionText.startsWith(',')) {
+              optionText = optionText.substring(1);
+            }
+          }
+        }
+        
+        currentMCQ.options.push({ text: optionText, isCorrect });
+      }
+    }
+  }
+  
+  if (currentMCQ) {
+    results.push(finalizeMCQ(currentMCQ, results.length + 1));
+  }
+  
+  return results;
+};
+
 export const parseHtmlToMcqs = (htmlInput: string): MCQData[] => {
+  const trimmed = htmlInput.trim();
+  const isNewFormat = /^\s*".*?"\s*,\s*\d+\s*,\s*[a-zA-Z0-9_-]+\s*,/m.test(trimmed) || 
+                      (/^\s*\*?,/m.test(trimmed) && trimmed.split('\n').some(line => line.trim().startsWith('*,')));
+  
+  if (isNewFormat) {
+    return parseNewQbsFormat(htmlInput);
+  }
+
   const parser = new DOMParser();
   const doc = parser.parseFromString(htmlInput, 'text/html');
   

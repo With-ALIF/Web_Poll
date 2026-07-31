@@ -1,12 +1,16 @@
 import TelegramBot from 'node-telegram-bot-api';
 
-const BOT_TOKEN = "8783681142:AAGcPnAIVZ6L4ivQQFqNC2hFIq0uZmtC51U";
-const bot = new TelegramBot(BOT_TOKEN);
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
+const bot = BOT_TOKEN ? new TelegramBot(BOT_TOKEN) : null;
 
 export default async function handler(req: any, res: any) {
   const host = req.headers.host;
   // Telegram webhooks REQUIRE https
   const url = `https://${host}/api/webhook`;
+  
+  if (!bot) {
+    return res.status(500).send("❌ Error: TELEGRAM_BOT_TOKEN environment variable is not defined.");
+  }
   
   try {
     await bot.setWebHook(url);

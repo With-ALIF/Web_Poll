@@ -176,9 +176,6 @@ export default async function handler(req: any, res: any) {
           model: currentModel,
           input: prompt,
           response_format: schema,
-          generation_config: {
-            temperature: 0.1
-          }
         });
 
         const lastStep = interaction.steps[interaction.steps.length - 1];
