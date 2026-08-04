@@ -20,6 +20,17 @@ export default function ProfilePage() {
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteError, setDeleteError] = useState('');
 
+  const normalizeGithubUrl = (url: string): string => {
+    if (!url) return '';
+    let clean = url.trim();
+    if (clean.includes('github.com') && clean.includes('/blob/')) {
+      clean = clean
+        .replace('github.com', 'raw.githubusercontent.com')
+        .replace('/blob/', '/');
+    }
+    return clean;
+  };
+
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/auth');
@@ -29,15 +40,24 @@ export default function ProfilePage() {
   useEffect(() => {
     if (user) {
       const fetchProfile = async () => {
-        const { data, error } = await supabase
+        const { data: profileData } = await supabase
           .from('profiles')
-          .select('*')
+          .select('display_name')
           .eq('id', user.id)
           .single();
         
-        if (data) {
-          setDisplayName(data.display_name || '');
-          setPhotoURL(data.photo_url || '');
+        if (profileData) {
+          setDisplayName(profileData.display_name || '');
+        }
+
+        const { data: photoData } = await supabase
+          .from('user_photos')
+          .select('photo_url')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (photoData) {
+          setPhotoURL(normalizeGithubUrl(photoData.photo_url || ''));
         }
       };
       fetchProfile();
@@ -48,16 +68,30 @@ export default function ProfilePage() {
     if (!user) return;
     setLoading(true);
     setMessage('');
+    const cleanPhotoURL = normalizeGithubUrl(photoURL);
+    setPhotoURL(cleanPhotoURL);
     try {
-      const { error } = await supabase
+      // 1. Update display name in profiles
+      const { error: profileError } = await supabase
         .from('profiles')
         .update({
           display_name: displayName,
-          photo_url: photoURL
         })
         .eq('id', user.id);
 
-      if (error) throw error;
+      if (profileError) throw profileError;
+
+      // 2. Upsert photo URL in user_photos table
+      const { error: photoError } = await supabase
+        .from('user_photos')
+        .upsert({
+          user_id: user.id,
+          photo_url: cleanPhotoURL,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' });
+
+      if (photoError) throw photoError;
+
       setMessage('Profile updated successfully!');
     } catch (error) {
       setMessage('Failed to update profile.');
