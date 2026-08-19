@@ -37,12 +37,12 @@ export const createUserProfile = async (user: User) => {
       
       const { error: insertError } = await supabase
         .from('profiles')
-        .insert({
+        .upsert({
           id: user.id,
           email: user.email,
           display_name: user.user_metadata?.full_name || '',
           role: defaultRole,
-        });
+        }, { onConflict: 'id' });
 
       if (insertError) throw insertError;
       console.log("User profile created successfully with role:", defaultRole);

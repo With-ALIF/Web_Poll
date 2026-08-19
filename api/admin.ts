@@ -1,6 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY, getSupabaseAdmin } from './supabaseClient.js';
 
+function generateRandomPassword(length = 8): string {
+  const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
 async function verifyAdmin(req: any): Promise<boolean> {
   try {
     const authHeader = req.headers['authorization'] || req.headers['Authorization'] || req.headers.authorization;
@@ -156,7 +165,7 @@ export default async function handler(req: any, res: any) {
           });
         }
 
-        const finalPassword = password || Math.random().toString(36).slice(-8);
+        const finalPassword = (password && password.trim().length >= 6) ? password.trim() : generateRandomPassword(8);
 
         const { data: userData, error: createError } = await supabaseAdmin.auth.admin.createUser({
           email,
@@ -181,12 +190,12 @@ export default async function handler(req: any, res: any) {
 
         const { error: profileError } = await supabaseAdmin
           .from('profiles')
-          .insert({
+          .upsert({
             id: createdUser.id,
             email: createdUser.email,
             display_name: displayName || '',
             role: 'user'
-          });
+          }, { onConflict: 'id' });
 
         if (profileError) {
           console.error("❌ Profile record creation failed:", profileError.message);
@@ -211,7 +220,7 @@ export default async function handler(req: any, res: any) {
 
         const { error: permConfigError } = await supabaseAdmin
           .from('profile_permissions')
-          .upsert(permObj);
+          .upsert(permObj, { onConflict: 'id' });
 
         if (permConfigError) {
           console.error("❌ Permissions config creation failed:", permConfigError.message);

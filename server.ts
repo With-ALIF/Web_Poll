@@ -14,6 +14,7 @@ dotenv.config({ override: true });
 
 const DEFAULT_URL = 'https://cvmmpnpvstrwgfmhfplw.supabase.co';
 const DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN2bW1wbnB2c3Ryd2dmbWhmcGx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3NzI3MDQsImV4cCI6MjA5NzM0ODcwNH0.v0almOw_atds8v44EXDiwnAMPE9EhHg8WE4YltTDbzM';
+const DEFAULT_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN2bW1wbnB2c3Ryd2dmbWhmcGx3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTc3MjcwNCwiZXhwIjoyMDk3MzQ4NzA0fQ.Xm_9NZ2Y6-pVNODfQ-yA6ftpcscqbZg1FlKvuwlFkjQ';
 
 let envSupaUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
 if (!envSupaUrl || envSupaUrl.includes('ais-dev') || envSupaUrl.includes('ais-pre') || envSupaUrl.includes('guwimglpjxstczuocary') || !envSupaUrl.includes('.supabase.co')) {
@@ -27,9 +28,9 @@ if (!envSupaAnonKey || envSupaAnonKey.includes('VITE_SUPABASE_ANON_KEY') || envS
 }
 const SUPABASE_ANON_KEY = envSupaAnonKey;
 
-let envSupaRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
-if (!envSupaRoleKey || envSupaRoleKey.includes('guwimglpjxstczuocary')) {
-  envSupaRoleKey = SUPABASE_ANON_KEY;
+let envSupaRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || DEFAULT_SERVICE_ROLE_KEY;
+if (!envSupaRoleKey || envSupaRoleKey.includes('guwimglpjxstczuocary') || envSupaRoleKey === 'undefined' || envSupaRoleKey === envSupaAnonKey) {
+  envSupaRoleKey = DEFAULT_SERVICE_ROLE_KEY;
 }
 const SUPABASE_SERVICE_ROLE_KEY = envSupaRoleKey;
 
@@ -102,6 +103,15 @@ async function initSupabaseAdmin() {
   } catch (error: any) {
     console.error("❌ Unexpected error in initSupabaseAdmin:", error.message || error);
   }
+}
+
+function generateRandomPassword(length = 8): string {
+  const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
 }
 
 async function verifyAdmin(req: express.Request): Promise<boolean> {
@@ -350,7 +360,7 @@ async function startServer() {
         });
       }
 
-      const finalPassword = password || Math.random().toString(36).slice(-8);
+      const finalPassword = (password && password.trim().length >= 6) ? password.trim() : generateRandomPassword(8);
 
       const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
         auth: {
@@ -381,15 +391,15 @@ async function startServer() {
         return res.status(500).json({ error: "Could not create user account." });
       }
 
-      // 2. Insert user into public.profiles
+      // 2. Upsert user into public.profiles
       const { error: profileError } = await supabaseAdmin
         .from('profiles')
-        .insert({
+        .upsert({
           id: createdUser.id,
           email: createdUser.email,
           display_name: displayName || '',
           role: 'user'
-        });
+        }, { onConflict: 'id' });
 
       if (profileError) {
         console.error("❌ Profile record creation failed:", profileError.message);
@@ -412,10 +422,10 @@ async function startServer() {
         qbs: (permissions || []).includes('qbs'),
       };
 
-      // 3. Update permissions in profile_permissions
+      // 3. Upsert permissions in profile_permissions
       const { error: permConfigError } = await supabaseAdmin
         .from('profile_permissions')
-        .upsert(permObj);
+        .upsert(permObj, { onConflict: 'id' });
 
       if (permConfigError) {
         console.error("❌ Permissions config creation failed:", permConfigError.message);

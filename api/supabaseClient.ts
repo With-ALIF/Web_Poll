@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const DEFAULT_URL = 'https://cvmmpnpvstrwgfmhfplw.supabase.co';
 const DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN2bW1wbnB2c3Ryd2dmbWhmcGx3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3NzI3MDQsImV4cCI6MjA5NzM0ODcwNH0.v0almOw_atds8v44EXDiwnAMPE9EhHg8WE4YltTDbzM';
+const DEFAULT_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN2bW1wbnB2c3Ryd2dmbWhmcGx3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc4MTc3MjcwNCwiZXhwIjoyMDk3MzQ4NzA0fQ.Xm_9NZ2Y6-pVNODfQ-yA6ftpcscqbZg1FlKvuwlFkjQ';
 
 let envSupaUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
 if (!envSupaUrl || envSupaUrl.includes('ais-dev') || envSupaUrl.includes('ais-pre') || envSupaUrl.includes('guwimglpjxstczuocary') || !envSupaUrl.includes('.supabase.co')) {
@@ -15,9 +16,9 @@ if (!envSupaAnonKey || envSupaAnonKey.includes('VITE_SUPABASE_ANON_KEY') || envS
 }
 export const SUPABASE_ANON_KEY = envSupaAnonKey;
 
-let envSupaRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
-if (!envSupaRoleKey || envSupaRoleKey.includes('guwimglpjxstczuocary') || envSupaRoleKey === 'undefined') {
-  envSupaRoleKey = SUPABASE_ANON_KEY;
+let envSupaRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || DEFAULT_SERVICE_ROLE_KEY;
+if (!envSupaRoleKey || envSupaRoleKey.includes('guwimglpjxstczuocary') || envSupaRoleKey === 'undefined' || envSupaRoleKey === envSupaAnonKey) {
+  envSupaRoleKey = DEFAULT_SERVICE_ROLE_KEY;
 }
 export const SUPABASE_SERVICE_ROLE_KEY = envSupaRoleKey;
 
