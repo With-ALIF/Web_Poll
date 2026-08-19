@@ -1,15 +1,16 @@
 -- Create Users table
 CREATE TABLE IF NOT EXISTS public.profiles (
-  id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
-  email TEXT,
-  display_name TEXT,
-  photo_url TEXT,
-  role TEXT DEFAULT 'user' CHECK (role IN ('admin', 'user')),
-  permissions JSONB DEFAULT '[]'::jsonb,
-  total_generated INT DEFAULT 0,
-  total_sent INT DEFAULT 0,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  id UUID NOT NULL,
+  email TEXT NULL,
+  display_name TEXT NULL,
+  role TEXT NULL DEFAULT 'user'::TEXT,
+  total_generated INTEGER NULL DEFAULT 0,
+  total_sent INTEGER NULL DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE NULL DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE NULL DEFAULT NOW(),
+  CONSTRAINT profiles_pkey_new PRIMARY KEY (id),
+  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users (id) ON DELETE CASCADE,
+  CONSTRAINT profiles_role_check CHECK (role = ANY (ARRAY['admin'::text, 'user'::text]))
 );
 
 -- Enable RLS
@@ -247,24 +248,33 @@ DROP POLICY IF EXISTS "Allow updating system stats to admins." ON public.system_
 CREATE POLICY "Allow updating system stats to admins." ON public.system_stats
   FOR ALL USING (public.is_admin());
 
--- Function to handle new user creation
+-- Function to handle new user creation with exception tolerance
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, display_name, photo_url, role)
-  VALUES (
-    NEW.id,
-    NEW.email,
-    NEW.raw_user_meta_data->>'full_name',
-    NEW.raw_user_meta_data->>'avatar_url',
-    CASE 
-      WHEN NEW.email IN ('alifweb@gmail.com', 'alifbrur16@gmail.com') THEN 'admin' 
-      ELSE 'user' 
-    END
-  );
+  BEGIN
+    INSERT INTO public.profiles (id, email, display_name, role)
+    VALUES (
+      NEW.id,
+      NEW.email,
+      NEW.raw_user_meta_data->>'full_name',
+      CASE 
+        WHEN NEW.email IN ('alifweb@gmail.com', 'alifbrur16@gmail.com') THEN 'admin' 
+        ELSE 'user' 
+      END
+    )
+    ON CONFLICT (id) DO NOTHING;
+  EXCEPTION WHEN OTHERS THEN
+    -- Prevent failures in auth.users registration if tables/columns are missing
+  END;
 
-  INSERT INTO public.profile_permissions (id)
-  VALUES (NEW.id);
+  BEGIN
+    INSERT INTO public.profile_permissions (id)
+    VALUES (NEW.id)
+    ON CONFLICT (id) DO NOTHING;
+  EXCEPTION WHEN OTHERS THEN
+    -- Prevent failures in auth.users registration if tables/columns are missing
+  END;
 
   RETURN NEW;
 END;

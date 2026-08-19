@@ -41,12 +41,23 @@ export const createUserProfile = async (user: User) => {
           id: user.id,
           email: user.email,
           display_name: user.user_metadata?.full_name || '',
-          photo_url: user.user_metadata?.avatar_url || '',
           role: defaultRole,
         });
 
       if (insertError) throw insertError;
       console.log("User profile created successfully with role:", defaultRole);
+
+      // Save avatar_url to user_photos
+      const avatarUrl = user.user_metadata?.avatar_url || '';
+      if (avatarUrl) {
+        await supabase
+          .from('user_photos')
+          .upsert({
+            user_id: user.id,
+            photo_url: avatarUrl,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'user_id' });
+      }
     } else {
       console.log("User profile already exists");
       localStorage.setItem(`profile_${user.id}`, JSON.stringify(profile));

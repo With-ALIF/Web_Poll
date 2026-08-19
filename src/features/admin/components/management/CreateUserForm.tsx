@@ -32,6 +32,10 @@ export const CreateUserForm: React.FC<CreateUserFormProps> = ({ onSubmit, loadin
         </div>
       </div>
       <div className="space-y-1.5">
+        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Password</label>
+        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all" placeholder="Enter password (minimum 6 characters)" minLength={6} required />
+      </div>
+      <div className="space-y-1.5">
         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider ml-1">Permissions</label>
         <div className="grid grid-cols-2 gap-2">
           {AVAILABLE_PAGES.map(page => (

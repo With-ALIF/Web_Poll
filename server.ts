@@ -343,6 +343,13 @@ async function startServer() {
         return res.status(400).json({ error: "Email is required." });
       }
 
+      if (!SUPABASE_SERVICE_ROLE_KEY || SUPABASE_SERVICE_ROLE_KEY === SUPABASE_ANON_KEY) {
+        console.error("❌ SUPABASE_SERVICE_ROLE_KEY is missing or set to Anon key.");
+        return res.status(400).json({ 
+          error: "SUPABASE_SERVICE_ROLE_KEY is not configured or is set to the Anon key. Admin operations require the Service Role Key to be configured in your environment variables/Secrets." 
+        });
+      }
+
       const finalPassword = password || Math.random().toString(36).slice(-8);
 
       const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -361,7 +368,12 @@ async function startServer() {
       });
 
       if (createError) {
-        return res.status(400).json({ error: createError.message });
+        console.error("❌ Supabase Admin createUser failed:", createError);
+        let errMsg = createError.message || JSON.stringify(createError);
+        if (errMsg.includes("Database error creating new user")) {
+          errMsg = "Database error creating new user. This is caused by a failing database trigger (public.handle_new_user) in your Supabase project. To fix this, please run the SQL query from your 'supabase_schema.sql' file (specifically the updated exception-tolerant 'handle_new_user' trigger function) in your Supabase SQL Editor.";
+        }
+        return res.status(400).json({ error: errMsg });
       }
 
       const createdUser = userData.user;
@@ -376,12 +388,14 @@ async function startServer() {
           id: createdUser.id,
           email: createdUser.email,
           display_name: displayName || '',
-          photo_url: '',
           role: 'user'
         });
 
       if (profileError) {
-        console.error("Warning: Profile record creation failed:", profileError.message);
+        console.error("❌ Profile record creation failed:", profileError.message);
+        // Clean up created Auth user to avoid orphaned accounts
+        await supabaseAdmin.auth.admin.deleteUser(createdUser.id);
+        return res.status(400).json({ error: `Database error creating user profile: ${profileError.message}` });
       }
 
       const permObj = {
@@ -404,7 +418,11 @@ async function startServer() {
         .upsert(permObj);
 
       if (permConfigError) {
-        console.error("Warning: Permissions config creation failed:", permConfigError.message);
+        console.error("❌ Permissions config creation failed:", permConfigError.message);
+        // Clean up profile and Auth user
+        await supabaseAdmin.from('profiles').delete().eq('id', createdUser.id);
+        await supabaseAdmin.auth.admin.deleteUser(createdUser.id);
+        return res.status(400).json({ error: `Database error configuring user permissions: ${permConfigError.message}` });
       }
 
       res.status(200).json({
@@ -432,6 +450,12 @@ async function startServer() {
       const { userId } = req.body;
       if (!userId) {
         return res.status(400).json({ error: "User ID is required." });
+      }
+
+      if (!SUPABASE_SERVICE_ROLE_KEY || SUPABASE_SERVICE_ROLE_KEY === SUPABASE_ANON_KEY) {
+        return res.status(400).json({ 
+          error: "SUPABASE_SERVICE_ROLE_KEY is not configured or is set to the Anon key. Admin operations require the Service Role Key." 
+        });
       }
 
       const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -478,6 +502,12 @@ async function startServer() {
         return res.status(400).json({ error: "User ID and new password are required." });
       }
 
+      if (!SUPABASE_SERVICE_ROLE_KEY || SUPABASE_SERVICE_ROLE_KEY === SUPABASE_ANON_KEY) {
+        return res.status(400).json({ 
+          error: "SUPABASE_SERVICE_ROLE_KEY is not configured or is set to the Anon key. Admin operations require the Service Role Key." 
+        });
+      }
+
       const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
         auth: { autoRefreshToken: false, persistSession: false }
       });
@@ -488,6 +518,7 @@ async function startServer() {
       );
 
       if (updateError) {
+        console.error("❌ Supabase Admin resetPassword failed:", updateError);
         return res.status(400).json({ error: updateError.message });
       }
 
@@ -500,55 +531,62 @@ async function startServer() {
 
   app.get("/api/admin/list-users", async (req, res) => {
     try {
-      const isAdmin = await verifyAdmin(req);
-      if (!isAdmin) {
-        return res.status(403).json({ error: "Access denied." });
-      }
+       const isAdmin = await verifyAdmin(req);
+       if (!isAdmin) {
+         return res.status(403).json({ error: "Access denied." });
+       }
+ 
+       const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+         auth: { autoRefreshToken: false, persistSession: false }
+       });
+ 
+       // Fetch profiles from DB
+       const { data: profiles, error: profileError } = await supabaseAdmin
+         .from('profiles')
+         .select('*, profile_permissions(*)');
+       
+       if (profileError) throw profileError;
 
-      const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-        auth: { autoRefreshToken: false, persistSession: false }
-      });
+       // Fetch user photos
+       const { data: photos } = await supabaseAdmin
+         .from('user_photos')
+         .select('user_id, photo_url');
 
-      // Fetch profiles from DB
-      const { data: profiles, error: profileError } = await supabaseAdmin
-        .from('profiles')
-        .select('*, profile_permissions(*)');
-      
-      if (profileError) throw profileError;
-
-      const mergedUsers = (profiles || [])
-        .map((profile: any) => {
-        const perms = [];
-        if (profile.profile_permissions) {
-          const p = Array.isArray(profile.profile_permissions) ? profile.profile_permissions[0] : profile.profile_permissions;
-          if (p) {
-            if (p.polls) perms.push('polls');
-            if (p.drafts) perms.push('drafts');
-            if (p.formats) perms.push('formats');
-            if (p.csv_modifier) perms.push('csv-modifier');
-            if (p.ocr) perms.push('ocr');
-            if (p.photocard) perms.push('photocard');
-            if (p.exam_paper) perms.push('exam-paper');
-            if (p.note) perms.push('note');
-            if (p.suffix_edit) perms.push('suffix-edit');
-            if (p.qbs) perms.push('qbs');
-          }
-        }
-        
-        return {
-          id: profile.id,
-          email: profile.email || '',
-          displayName: profile.display_name || (profile.email ? profile.email.split('@')[0] : 'Anonymous'),
-          photoURL: profile.photo_url || '',
-          role: profile.role || 'user',
-          permissions: perms,
-          stats: { 
-            generated: profile.total_generated || 0, 
-            sent: profile.total_sent || 0 
-          },
-          createdAt: profile.created_at ? { seconds: Math.floor(new Date(profile.created_at).getTime() / 1000) } : { seconds: 0 }
-        };
-      });
+       const photoMap = new Map((photos || []).map(p => [p.user_id, p.photo_url]));
+ 
+       const mergedUsers = (profiles || [])
+         .map((profile: any) => {
+         const perms = [];
+         if (profile.profile_permissions) {
+           const p = Array.isArray(profile.profile_permissions) ? profile.profile_permissions[0] : profile.profile_permissions;
+           if (p) {
+             if (p.polls) perms.push('polls');
+             if (p.drafts) perms.push('drafts');
+             if (p.formats) perms.push('formats');
+             if (p.csv_modifier) perms.push('csv-modifier');
+             if (p.ocr) perms.push('ocr');
+             if (p.photocard) perms.push('photocard');
+             if (p.exam_paper) perms.push('exam-paper');
+             if (p.note) perms.push('note');
+             if (p.suffix_edit) perms.push('suffix-edit');
+             if (p.qbs) perms.push('qbs');
+           }
+         }
+         
+         return {
+           id: profile.id,
+           email: profile.email || '',
+           displayName: profile.display_name || (profile.email ? profile.email.split('@')[0] : 'Anonymous'),
+           photoURL: photoMap.get(profile.id) || '',
+           role: profile.role || 'user',
+           permissions: perms,
+           stats: { 
+             generated: profile.total_generated || 0, 
+             sent: profile.total_sent || 0 
+           },
+           createdAt: profile.created_at ? { seconds: Math.floor(new Date(profile.created_at).getTime() / 1000) } : { seconds: 0 }
+         };
+       });
 
       res.status(200).json({ users: mergedUsers });
     } catch (err: any) {

@@ -152,7 +152,7 @@ export const incrementUserStats = async (userId: string, deltas: { generated: nu
   try {
     const { data: profile, error: fetchError } = await supabase
       .from('profiles')
-      .select('total_generated, total_sent, display_name, email, role, photo_url')
+      .select('total_generated, total_sent, display_name, email, role')
       .eq('id', userId)
       .maybeSingle();
 
