@@ -330,23 +330,17 @@ export default function RapidFirePage() {
     setCountdownSeconds(null);
     cancelSendingRef.current = false;
     
-    const initialTotal = generatedQuestions.length;
+    const queue = [...generatedQuestions];
+    const initialTotal = queue.length;
     setTotalToSend(initialTotal);
     let successCount = 0;
     
     try {
-      while (!cancelSendingRef.current) {
-        let currentQueue: Omit<QuizQuestion, 'id' | 'status'>[] = [];
-        setGeneratedQuestions(prev => {
-          currentQueue = prev;
-          return prev;
-        });
+      for (let i = 0; i < queue.length; i++) {
+        if (cancelSendingRef.current) break;
 
-        if (currentQueue.length === 0) break;
-        const q = currentQueue[0];
-        const remainingCount = currentQueue.length;
-
-        setSendingProgress(successCount + 1);
+        const q = queue[i];
+        setSendingProgress(i + 1);
         setCurrentSendStatus('sending');
         setCountdownSeconds(null);
 
@@ -379,7 +373,7 @@ export default function RapidFirePage() {
         }
 
         // Anti-rate-limit delay with real-time countdown before next question
-        if (remainingCount > 1 && !cancelSendingRef.current) {
+        if (i < queue.length - 1 && !cancelSendingRef.current) {
           const totalWait = Math.max(1, typeof delaySeconds === 'number' ? delaySeconds : 30);
           for (let remaining = totalWait; remaining > 0; remaining--) {
             if (cancelSendingRef.current) break;
@@ -392,13 +386,12 @@ export default function RapidFirePage() {
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
-        // Auto remove sent question from panel
-        setGeneratedQuestions(prev => prev.slice(1));
+        // Remove the sent question from panel immediately after its slot finishes
+        setGeneratedQuestions(prev => prev.filter((item, idx) => {
+          // Remove the first item from the current view
+          return idx > 0;
+        }));
         setCurrentSendStatus(null);
-
-        if (remainingCount <= 1) {
-          break;
-        }
       }
       
       if (cancelSendingRef.current) {
