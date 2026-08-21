@@ -1,16 +1,21 @@
 async function sendPhotoToTelegram(
-  _cleanToken: string,
+  cleanToken: string,
   cleanChatId: string,
   image: string,
   caption?: string
 ): Promise<number> {
   const photoUrl = `/api/telegram/sendPhoto`;
   
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json'
+  };
+  if (cleanToken && cleanToken.trim()) {
+    headers['x-telegram-bot-token'] = cleanToken.trim();
+  }
+
   const response = await fetch(photoUrl, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
+    headers,
     body: JSON.stringify({
       chat_id: cleanChatId,
       image: image,
@@ -18,12 +23,19 @@ async function sendPhotoToTelegram(
       parse_mode: 'HTML'
     })
   });
-  const data = await response.json();
+
+  const resText = await response.text();
+  let data: any = {};
+  try {
+    data = resText ? JSON.parse(resText) : {};
+  } catch {
+    data = { ok: false, error: resText || `Server returned HTTP ${response.status}` };
+  }
   
-  if (data.ok && data.result?.message_id) {
+  if (response.ok && data.ok && data.result?.message_id) {
     return data.result.message_id;
   }
-  throw new Error(data.description || data.error || "Failed to send image to Telegram");
+  throw new Error(data.error || data.description || "Failed to send image to Telegram");
 }
 
 export { sendPhotoToTelegram };

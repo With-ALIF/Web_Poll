@@ -39,16 +39,17 @@ export function useTelegram({ settings, questions, setQuestions, setStats, botTo
       navigate('/settings');
       return;
     }
-    const exists = questions.some(q => q.id === id);
-    if (exists) {
-      setQuestions(p => p.map(q => q.id === id ? { ...q, status: 'sending' } : q));
-    }
     const qToSend = customQuestion || questions.find(q => q.id === id);
     if (!qToSend) return;
 
     if (!qToSend.topic) {
       setSendError('পোল পাঠানোর আগে অবশ্যই একটি বিষয় (Topic) নির্বাচন করতে হবে।');
       return;
+    }
+
+    const exists = questions.some(q => q.id === id);
+    if (exists) {
+      setQuestions(p => p.map(q => q.id === id ? { ...q, status: 'sending' } : q));
     }
 
     try {

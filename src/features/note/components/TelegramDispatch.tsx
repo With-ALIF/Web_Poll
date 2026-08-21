@@ -21,7 +21,7 @@ export function TelegramDispatch({
   onSend,
   fixedBotToken,
 }: TelegramDispatchProps) {
-  const hasBotToken = !!fixedBotToken;
+  const hasBotToken = true; // Bot token is handled by the backend proxy
 
   return (
     <div className="bg-gradient-to-br from-indigo-50 to-blue-50/50 rounded-2xl p-5 border border-indigo-100/50 mt-4">
@@ -48,7 +48,7 @@ export function TelegramDispatch({
           </select>
         </div>
         <button 
-          onClick={onSend} disabled={isSending || isEditing || !selectedChannelId || !hasBotToken}
+          onClick={onSend} disabled={isSending || isEditing || !selectedChannelId}
           className="w-full sm:w-auto shrink-0 flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-slate-900 text-white text-xs font-black rounded-xl transition-all disabled:opacity-50 cursor-pointer"
         >
           {isSending ? (
@@ -58,12 +58,6 @@ export function TelegramDispatch({
           )}
         </button>
       </div>
-      {!hasBotToken && (
-        <div className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-rose-600">
-          <AlertCircle className="w-3.5 h-3.5" />
-          <span>Bot Token is missing. Configure your Telegram Bot in your Account Settings!</span>
-        </div>
-      )}
     </div>
   );
 }

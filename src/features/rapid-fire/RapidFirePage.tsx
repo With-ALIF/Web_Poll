@@ -22,20 +22,22 @@ export default function RapidFirePage() {
   const appState = useApp();
   
   const [inputText, setInputText] = useState('');
-  const [questionCount, setQuestionCount] = useState(10);
+  const [questionCount, setQuestionCount] = useState<number | ''>(10);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedQuestions, setGeneratedQuestions] = useState<Omit<QuizQuestion, 'id' | 'status'>[]>([]);
   const [error, setError] = useState<string | null>(null);
   
   // Telegram states
+  const [selectedChannelId, setSelectedChannelId] = useState('');
   const [customChannelId, setCustomChannelId] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendResult, setSendResult] = useState<string | null>(null);
   const [sendingProgress, setSendingProgress] = useState<number | null>(null);
 
   // Get active channel from settings
-  const defaultChannelId = appState?.settings?.settings?.activeChannelId || '';
-  const activeChannelId = customChannelId.trim() || defaultChannelId.trim();
+  const channels = appState?.settings?.settings?.channels || [];
+  const defaultChannelId = appState?.settings?.settings?.activeChannelId || (channels[0]?.id || '');
+  const activeChannelId = (selectedChannelId || customChannelId || defaultChannelId).trim();
 
   const handleGenerate = async () => {
     if (!inputText.trim()) {
@@ -49,7 +51,8 @@ export default function RapidFirePage() {
     setSendingProgress(null);
     
     try {
-      const response = await generateQuizFromText(inputText.trim(), questionCount, true);
+      const finalCount = typeof questionCount === 'number' && questionCount > 0 ? Math.min(30, questionCount) : 10;
+      const response = await generateQuizFromText(inputText.trim(), finalCount, true);
       if (!response || response.length === 0) {
         throw new Error('কোনো প্রশ্ন তৈরি করা সম্ভব হয়নি। অনুগ্রহ করে অন্য টেক্সট ট্রাই করুন।');
       }
@@ -141,17 +144,54 @@ export default function RapidFirePage() {
             <h2 className="text-base font-extrabold text-slate-800">Input Text</h2>
           </div>
           
-          <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 px-3.5 py-1.5 rounded-xl shrink-0">
-            <Hash className="w-4 h-4 text-slate-500" />
-            <label className="text-xs font-bold text-slate-600">Questions (max 30):</label>
-            <input 
-              type="number" 
-              min={1} 
-              max={30} 
-              value={questionCount}
-              onChange={(e) => setQuestionCount(Math.min(30, Math.max(1, parseInt(e.target.value) || 1)))}
-              className="w-12 bg-transparent text-slate-800 font-extrabold text-sm text-center focus:outline-none"
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Quick Presets */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+              {[5, 10, 15, 20, 30].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => setQuestionCount(num)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                    questionCount === num
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                  }`}
+                >
+                  {num}
+                </button>
+              ))}
+            </div>
+
+            {/* Custom Number Input */}
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl shrink-0">
+              <Hash className="w-4 h-4 text-slate-500" />
+              <label className="text-xs font-bold text-slate-600">Custom:</label>
+              <input 
+                type="number" 
+                min={1} 
+                max={30} 
+                placeholder="10"
+                value={questionCount === '' ? '' : questionCount}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === '') {
+                    setQuestionCount('');
+                  } else {
+                    const parsed = parseInt(raw, 10);
+                    if (!isNaN(parsed)) {
+                      setQuestionCount(Math.min(30, Math.max(0, parsed)));
+                    }
+                  }
+                }}
+                onBlur={() => {
+                  if (questionCount === '' || questionCount < 1) {
+                    setQuestionCount(10);
+                  }
+                }}
+                className="w-12 bg-white border border-slate-200 rounded-lg py-0.5 text-slate-800 font-extrabold text-sm text-center focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
           </div>
         </div>
 
@@ -226,20 +266,52 @@ export default function RapidFirePage() {
                 ))}
               </div>
 
-              {/* Target Channel ID input (for flexibility) */}
+              {/* Target Channel Selector & ID input */}
               <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <span className="text-xs font-bold text-slate-600">Target Telegram Channel Chat ID:</span>
-                  <input
-                    type="text"
-                    value={customChannelId}
-                    onChange={(e) => setCustomChannelId(e.target.value)}
-                    placeholder={defaultChannelId || "@your_channel_id"}
-                    className="bg-white border border-slate-200 px-3 py-1.5 rounded-xl text-xs w-full sm:w-64 focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono"
-                  />
+                  <span className="text-xs font-bold text-slate-700">Target Telegram Channel:</span>
+                  {channels.length > 0 ? (
+                    <select
+                      value={selectedChannelId || (customChannelId ? '__custom__' : defaultChannelId)}
+                      onChange={(e) => {
+                        if (e.target.value === '__custom__') {
+                          setSelectedChannelId('');
+                        } else {
+                          setSelectedChannelId(e.target.value);
+                          setCustomChannelId('');
+                        }
+                      }}
+                      className="bg-white border border-slate-200 px-3 py-1.5 rounded-xl text-xs w-full sm:w-64 focus:ring-1 focus:ring-indigo-500 focus:outline-none font-semibold text-slate-800"
+                    >
+                      {channels.map((chan) => (
+                        <option key={chan.id} value={chan.id}>📢 {chan.name} ({chan.id})</option>
+                      ))}
+                      <option value="__custom__">✍️ Custom Chat ID...</option>
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={customChannelId}
+                      onChange={(e) => setCustomChannelId(e.target.value)}
+                      placeholder={defaultChannelId || "@your_channel_id"}
+                      className="bg-white border border-slate-200 px-3 py-1.5 rounded-xl text-xs w-full sm:w-64 focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono"
+                    />
+                  )}
                 </div>
+                {(!selectedChannelId && (channels.length === 0 || customChannelId)) && (
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-slate-200/60">
+                    <span className="text-[11px] font-medium text-slate-500">Custom Chat ID:</span>
+                    <input
+                      type="text"
+                      value={customChannelId}
+                      onChange={(e) => setCustomChannelId(e.target.value)}
+                      placeholder="@your_channel_id or -100xxxxxxxxxx"
+                      className="bg-white border border-slate-200 px-3 py-1.5 rounded-xl text-xs w-full sm:w-64 focus:ring-1 focus:ring-indigo-500 focus:outline-none font-mono"
+                    />
+                  </div>
+                )}
                 <p className="text-[10px] text-slate-400">
-                  * defaultChannelId settings থেকে স্বয়ংক্রিয়ভাবে লোড করা হয়েছে। কাস্টম দিতে চাইলে টাইপ করুন।
+                  * বটটি অবশ্যই আপনার চ্যানেলে Administrator হিসেবে থাকতে হবে।
                 </p>
               </div>
 

@@ -6,7 +6,8 @@ export async function sendQuizToTelegram(
   settings: TelegramSettings,
   targetChatId?: string
 ): Promise<boolean> {
-  const cleanChatId = (targetChatId || settings.activeChannelId || '').trim();
+  const cleanChatId = (targetChatId || settings?.activeChannelId || '').trim();
+  const token = (settings?.botToken || '').trim();
 
-  return sendQuizPollToTelegram(question, settings, '', cleanChatId);
+  return sendQuizPollToTelegram(question, settings, token, cleanChatId);
 }

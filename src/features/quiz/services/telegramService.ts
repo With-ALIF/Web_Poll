@@ -26,6 +26,7 @@ export async function sendQuizToTelegram(
   targetChatId?: string
 ): Promise<boolean> {
   const cleanChatId = (targetChatId || settings.activeChannelId || '').trim();
+  const cleanToken = ((settings as any)?.botToken || '').trim();
 
   let replyToMessageId: number | undefined;
 
@@ -34,23 +35,30 @@ export async function sendQuizToTelegram(
     const photoUrl = `/api/telegram/sendPhoto`;
     
     try {
+      const photoHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (cleanToken) {
+        photoHeaders['x-telegram-bot-token'] = cleanToken;
+      }
+
       const photoResponse = await fetch(photoUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: photoHeaders,
         body: JSON.stringify({
           chat_id: cleanChatId,
           image: question.image,
         }),
       });
-      const photoData = await photoResponse.json();
+      const photoResText = await photoResponse.text();
+      let photoData: any = {};
+      try { photoData = photoResText ? JSON.parse(photoResText) : {}; } catch { photoData = { ok: false }; }
       
       if (photoData.ok && photoData.result && photoData.result.message_id) {
         replyToMessageId = photoData.result.message_id;
       } else {
         console.error("Failed to send photo:", photoData);
-        throw new Error(photoData.description || photoData.error || "Failed to send image to Telegram");
+        throw new Error(photoData.error || photoData.description || "Failed to send image to Telegram");
       }
     } catch (error: any) {
       console.error("Error sending photo:", error);
@@ -87,31 +95,49 @@ export async function sendQuizToTelegram(
     is_anonymous: true,
     type: "quiz",
     correct_option_id: question.correctOptionIndex,
-    explanation: finalExplanation,
   };
+
+  if (finalExplanation && finalExplanation.trim().length > 0) {
+    payload.explanation = finalExplanation.trim();
+    payload.explanation_parse_mode = "HTML";
+  }
 
   if (replyToMessageId) {
     payload.reply_to_message_id = replyToMessageId;
   }
 
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (cleanToken && cleanToken.trim()) {
+    headers["x-telegram-bot-token"] = cleanToken.trim();
+  }
+
   const response = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify(payload),
   });
 
-  const data = await response.json();
+  const resText = await response.text();
+  let data: any = {};
+  try {
+    data = resText ? JSON.parse(resText) : {};
+  } catch {
+    data = { ok: false, error: resText || `Server returned HTTP ${response.status}` };
+  }
 
-  if (!data.ok) {
+  if (!response.ok || !data.ok) {
     console.error("Telegram API Error:", data);
-    let errorMessage = data.description || data.error || "Failed to send quiz to Telegram";
+    let errorMessage = data.error || data.description || "Failed to send quiz to Telegram";
+    const lower = errorMessage.toLowerCase();
     
-    if (errorMessage.toLowerCase().includes("chat not found")) {
+    if (lower.includes("chat not found")) {
       errorMessage = `Chat not found! ID used: "${cleanChatId}". Please ensure the bot is added as an Admin, and the Chat ID is exactly correct.`;
-    } else if (errorMessage.toLowerCase().includes("unauthorized")) {
+    } else if (lower.includes("unauthorized")) {
       errorMessage = "Unauthorized! Your Bot Token might be incorrect in settings.";
+    } else if (lower === "not found" || (lower.includes("not found") && !lower.includes("chat"))) {
+      errorMessage = "Telegram Bot Token টি ভুল বা খুঁজে পাওয়া যায়নি (Telegram API: 'Not Found')। নিশ্চিত করুন BotFather থেকে পাওয়া সম্পূর্ণ টোকেনটি সিক্রেট এ যুক্ত করেছেন।";
     }
     
     throw new Error(errorMessage);
@@ -170,6 +196,14 @@ export async function sendNoteToTelegram(
 
   const chunks = splitMessage(noteContent, 3900);
   const url = `/api/telegram/sendMessage`;
+  const token = (settings?.botToken || '').trim();
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['x-telegram-bot-token'] = token;
+  }
   
   for (let i = 0; i < chunks.length; i++) {
     let chunkText = chunks[i];
@@ -183,9 +217,7 @@ export async function sendNoteToTelegram(
     try {
       const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           chat_id: cleanChatId,
           text: chunkText,
@@ -202,9 +234,7 @@ export async function sendNoteToTelegram(
       
       const retryRes = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify({
           chat_id: cleanChatId,
           text: plainChunkText,

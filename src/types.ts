@@ -23,6 +23,7 @@ export type SavedText = {
 };
 
 export type TelegramSettings = {
+  botToken?: string;
   channels?: TelegramChannel[];
   activeChannelId?: string;
   selectedChannelIds?: string[];
