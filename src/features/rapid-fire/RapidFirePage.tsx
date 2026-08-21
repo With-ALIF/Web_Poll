@@ -8,20 +8,22 @@ import {
   AlertCircle, 
   CheckCircle2, 
   Hash, 
-  FileText,
-  Trash2,
-  Copy,
-  Check,
-  RotateCcw,
-  History,
-  Clock,
-  BookmarkPlus,
-  ChevronDown,
-  ChevronUp,
-  Save,
-  BookOpen,
-  Tag,
-  Database
+  FileText, 
+  Trash2, 
+  Copy, 
+  Check, 
+  RotateCcw, 
+  History, 
+  Clock, 
+  Timer,
+  BookmarkPlus, 
+  ChevronDown, 
+  ChevronUp, 
+  Save, 
+  BookOpen, 
+  Tag, 
+  Database,
+  Square
 } from 'lucide-react';
 import { useAuthContext } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
@@ -129,6 +131,12 @@ export default function RapidFirePage() {
   const [isSending, setIsSending] = useState(false);
   const [sendResult, setSendResult] = useState<string | null>(null);
   const [sendingProgress, setSendingProgress] = useState<number | null>(null);
+  const [totalToSend, setTotalToSend] = useState<number>(0);
+  const [currentSendStatus, setCurrentSendStatus] = useState<'sending' | 'sent' | null>(null);
+  const [countdownSeconds, setCountdownSeconds] = useState<number | null>(null);
+  const [sendingSingleIdx, setSendingSingleIdx] = useState<number | null>(null);
+  const [sentSingleIdx, setSentSingleIdx] = useState<number | null>(null);
+  const cancelSendingRef = React.useRef(false);
 
   // Sync to local storage
   useEffect(() => {
@@ -184,10 +192,16 @@ export default function RapidFirePage() {
     
     try {
       const finalCount = typeof questionCount === 'number' && questionCount > 0 ? Math.min(30, questionCount) : 10;
-      const response = await generateQuizFromText(inputText.trim(), finalCount, true);
-      if (!response || response.length === 0) {
+      const rawResponse = await generateQuizFromText(inputText.trim(), finalCount, false);
+      if (!rawResponse || rawResponse.length === 0) {
         throw new Error('কোনো প্রশ্ন তৈরি করা সম্ভব হয়নি। অনুগ্রহ করে অন্য টেক্সট ট্রাই করুন।');
       }
+      
+      // Clean any bracket tags ([...]) completely for rapid fire
+      const response = rawResponse.map(q => ({
+        ...q,
+        question: q.question ? q.question.replace(/\s*\[[^\]]*\]\s*$/g, '').trim() : ''
+      }));
       
       // Update active questions
       setGeneratedQuestions(response);
@@ -313,14 +327,29 @@ export default function RapidFirePage() {
     setIsSending(true);
     setSendResult(null);
     setError(null);
+    setCountdownSeconds(null);
+    cancelSendingRef.current = false;
     
+    const initialTotal = generatedQuestions.length;
+    setTotalToSend(initialTotal);
     let successCount = 0;
     
     try {
-      for (let i = 0; i < generatedQuestions.length; i++) {
-        setSendingProgress(i + 1);
-        const q = generatedQuestions[i];
-        
+      while (!cancelSendingRef.current) {
+        let currentQueue: Omit<QuizQuestion, 'id' | 'status'>[] = [];
+        setGeneratedQuestions(prev => {
+          currentQueue = prev;
+          return prev;
+        });
+
+        if (currentQueue.length === 0) break;
+        const q = currentQueue[0];
+        const remainingCount = currentQueue.length;
+
+        setSendingProgress(successCount + 1);
+        setCurrentSendStatus('sending');
+        setCountdownSeconds(null);
+
         // Convert to app's standard QuizQuestion shape
         const questionPayload: QuizQuestion = {
           id: generateUUID(),
@@ -340,22 +369,111 @@ export default function RapidFirePage() {
         
         if (success) {
           successCount++;
+          setCurrentSendStatus('sent');
+
+          // Auto-save to poll_rapid table in database
+          const userId = user?.id || 'anonymous';
+          saveRapidQuestion(userId, q.question, effectiveTopic, effectiveSubject).catch(err => {
+            console.warn('[poll_rapid] auto-save error:', err);
+          });
         }
-        
-        // Anti-rate-limit delay based on user setting
-        if (i < generatedQuestions.length - 1) {
-          const waitTime = Math.max(1, typeof delaySeconds === 'number' ? delaySeconds : 30) * 1000;
-          await new Promise(resolve => setTimeout(resolve, waitTime));
+
+        // Anti-rate-limit delay with real-time countdown before next question
+        if (remainingCount > 1 && !cancelSendingRef.current) {
+          const totalWait = Math.max(1, typeof delaySeconds === 'number' ? delaySeconds : 30);
+          for (let remaining = totalWait; remaining > 0; remaining--) {
+            if (cancelSendingRef.current) break;
+            setCountdownSeconds(remaining);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+          setCountdownSeconds(null);
+        } else {
+          // Brief pause so user sees Sent confirmation before removing
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        // Auto remove sent question from panel
+        setGeneratedQuestions(prev => prev.slice(1));
+        setCurrentSendStatus(null);
+
+        if (remainingCount <= 1) {
+          break;
         }
       }
       
-      setSendResult(`✅ সফলভাবে ${successCount} টি প্রশ্ন আপনার টেলিগ্রাম চ্যানেলে পাঠানো হয়েছে!`);
+      if (cancelSendingRef.current) {
+        setSendResult(`🛑 পাঠানো স্থগিত করা হয়েছে। (${successCount} টি প্রশ্ন 'poll_rapid' এ সেভ ও টেলিগ্রামে পাঠানো হয়েছে)`);
+      } else {
+        setSendResult(`✅ সফলভাবে ${successCount} টি প্রশ্ন টেলিগ্রামে পাঠানো হয়েছে এবং 'poll_rapid' ডেটাবেজে সংরক্ষিত হয়েছে!`);
+      }
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'টেলিগ্রামে পাঠানোর সময় ত্রুটি ঘটেছে। অনুগ্রহ করে আপনার বটের পারমিশন চেক করুন।');
     } finally {
       setIsSending(false);
       setSendingProgress(null);
+      setCountdownSeconds(null);
+      setCurrentSendStatus(null);
+    }
+  };
+
+  const handleSendSingleQuestion = async (idx: number) => {
+    if (isSending || sendingSingleIdx !== null) return;
+    
+    const activeChannelId = customChannelId.trim() || selectedChannelId || defaultChannelId;
+    if (!activeChannelId) {
+      setError('টেলিগ্রাম চ্যানেল সিলেক্ট করুন অথবা চ্যানেলের আইডি / ইউজারনেম দিন।');
+      return;
+    }
+
+    const q = generatedQuestions[idx];
+    if (!q) return;
+
+    setSendingSingleIdx(idx);
+    setError(null);
+    setSendResult(null);
+
+    try {
+      const questionPayload: QuizQuestion = {
+        id: generateUUID(),
+        question: q.question,
+        options: q.options || [],
+        correctOptionIndex: q.correctOptionIndex ?? 0,
+        explanation: q.explanation || '',
+        status: 'pending',
+        topic: `${effectiveSubject} - ${effectiveTopic}`
+      };
+
+      const success = await sendQuestionTextToTelegram(
+        questionPayload, 
+        appState?.settings?.settings || {}, 
+        activeChannelId
+      );
+
+      if (success) {
+        setSentSingleIdx(idx);
+        
+        // Auto-save to database (poll_rapid table)
+        const userId = user?.id || 'anonymous';
+        saveRapidQuestion(userId, q.question, effectiveTopic, effectiveSubject).catch(err => {
+          console.warn('[poll_rapid] single auto-save error:', err);
+        });
+
+        // Brief delay so user sees Sent badge and checkmark
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Auto remove sent question from list
+        setGeneratedQuestions(prev => prev.filter((_, i) => i !== idx));
+        setSendResult(`✅ প্রশ্নটি সফলভাবে টেলিগ্রামে পাঠানো হয়েছে এবং 'poll_rapid' ডেটাবেজে সংরক্ষিত হয়েছে!`);
+      } else {
+        setError('প্রশ্নটি পাঠানো যায়নি। টেলিগ্রাম বট ও চ্যানেলের পারমিশন চেক করুন।');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'টেলিগ্রামে পাঠানোর সময় ত্রুটি ঘটেছে। অনুগ্রহ করে আপনার বটের পারমিশন চেক করুন।');
+    } finally {
+      setSendingSingleIdx(null);
+      setSentSingleIdx(null);
     }
   };
 
@@ -732,18 +850,112 @@ export default function RapidFirePage() {
               <div className="space-y-3">
                 {generatedQuestions.map((q, idx) => {
                   const isCopied = copiedId === `item-${idx}`;
+                  const isFirst = idx === 0;
+                  const isSentBulk = isSending && isFirst && currentSendStatus === 'sent';
+                  const isCurrentlySendingBulk = isSending && isFirst && currentSendStatus === 'sending';
+                  const isWaitingNextBulk = isSending && isFirst && currentSendStatus === 'sent' && countdownSeconds !== null;
+                  const isPendingBulk = isSending && !isFirst;
+
+                  const isSendingThisSingle = sendingSingleIdx === idx;
+                  const isSentThisSingle = sentSingleIdx === idx;
+
+                  const isAnySending = isSending || sendingSingleIdx !== null;
+
                   return (
-                    <div key={idx} className="bg-slate-50/70 hover:bg-slate-50 rounded-2xl p-4 border border-slate-200/80 flex items-start justify-between gap-3 group transition-all">
-                      <div className="flex items-start gap-3">
-                        <span className="bg-indigo-600 text-white text-xs font-black w-6 h-6 flex items-center justify-center rounded-lg shrink-0 shadow-sm mt-0.5">
+                    <div 
+                      key={idx} 
+                      className={`rounded-2xl p-4 border transition-all flex flex-col sm:flex-row sm:items-start justify-between gap-3 group ${
+                        isCurrentlySendingBulk || isSendingThisSingle
+                          ? 'bg-indigo-50/90 border-indigo-300 ring-2 ring-indigo-500/20 shadow-sm' 
+                          : isWaitingNextBulk
+                          ? 'bg-amber-50/80 border-amber-300 ring-2 ring-amber-400/30 shadow-sm'
+                          : isSentBulk || isSentThisSingle
+                          ? 'bg-emerald-50/80 border-emerald-300 ring-2 ring-emerald-400/30 shadow-sm'
+                          : 'bg-slate-50/70 hover:bg-slate-50 border-slate-200/80'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3 flex-1">
+                        <span className={`text-xs font-black w-6 h-6 flex items-center justify-center rounded-lg shrink-0 shadow-sm mt-0.5 ${
+                          isSentBulk || isWaitingNextBulk || isSentThisSingle
+                            ? 'bg-emerald-600 text-white' 
+                            : isCurrentlySendingBulk || isSendingThisSingle
+                            ? 'bg-indigo-600 text-white' 
+                            : 'bg-slate-700 text-white'
+                        }`}>
                           {idx + 1}
                         </span>
-                        <p className="text-slate-800 text-sm font-semibold leading-relaxed pt-0.5">
-                          {q.question}
-                        </p>
+                        <div className="space-y-1.5 flex-1">
+                          <p className="text-slate-800 text-sm font-semibold leading-relaxed pt-0.5">
+                            {q.question}
+                          </p>
+                          {/* Status badges */}
+                          {(isSending || isSendingThisSingle || isSentThisSingle) && (
+                            <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                              {(isSentBulk || isWaitingNextBulk || isSentThisSingle) && (
+                                <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-md flex items-center gap-1 shadow-2xs animate-fade-in">
+                                  <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[3]" />
+                                  <span>Sent (poll_rapid এ সংরক্ষিত)</span>
+                                </span>
+                              )}
+                              {(isCurrentlySendingBulk || isSendingThisSingle) && (
+                                <span className="text-[10px] font-bold bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md flex items-center gap-1.5 animate-pulse">
+                                  <div className="w-2.5 h-2.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                                  <span>টেলিগ্রামে পাঠানো হচ্ছে...</span>
+                                </span>
+                              )}
+                              {isWaitingNextBulk && (
+                                <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md flex items-center gap-1.5 border border-amber-300">
+                                  <Clock className="w-3 h-3 text-amber-600 animate-spin" style={{ animationDuration: '3s' }} />
+                                  <span>পরবর্তী প্রশ্ন পাঠানো হবে:</span>
+                                  <strong className="font-mono text-amber-950 font-black text-[11px] bg-white px-1.5 py-0.2 rounded border border-amber-300">
+                                    {countdownSeconds}s
+                                  </strong>
+                                  <span>পর</span>
+                                </span>
+                              )}
+                              {isPendingBulk && (
+                                <span className="text-[10px] font-medium bg-slate-200/80 text-slate-500 px-2 py-0.5 rounded-md">
+                                  অপেক্ষমান (Pending)
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-start">
+                        {/* Send Single Question Button */}
+                        <button
+                          type="button"
+                          disabled={isAnySending}
+                          onClick={() => handleSendSingleQuestion(idx)}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs ${
+                            isSentThisSingle
+                              ? 'bg-emerald-600 text-white ring-2 ring-emerald-400'
+                              : isSendingThisSingle
+                              ? 'bg-indigo-600 text-white ring-2 ring-indigo-300'
+                              : 'bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 hover:border-transparent active:scale-95'
+                          } disabled:opacity-40 disabled:pointer-events-none`}
+                          title="শুধুমাত্র এই প্রশ্নটি টেলিগ্রামে পাঠান"
+                        >
+                          {isSendingThisSingle ? (
+                            <>
+                              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              <span>পাঠানো হচ্ছে...</span>
+                            </>
+                          ) : isSentThisSingle ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                              <span>Sent</span>
+                            </>
+                          ) : (
+                            <>
+                              <Send className="w-3.5 h-3.5" />
+                              <span>পাঠান</span>
+                            </>
+                          )}
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => handleCopySingle(q.question, `item-${idx}`)}
@@ -754,8 +966,9 @@ export default function RapidFirePage() {
                         </button>
                         <button
                           type="button"
+                          disabled={isAnySending}
                           onClick={() => handleDeleteSingleQuestion(idx)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-white transition-all"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-white transition-all disabled:opacity-30"
                           title="মুছে ফেলুন"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -849,21 +1062,78 @@ export default function RapidFirePage() {
                 </div>
               </div>
 
-              {/* Sending status */}
+              {/* Sending status & Live Countdown */}
               {isSending && (
-                <div className="bg-indigo-50 text-indigo-800 p-4 rounded-xl flex items-center justify-between text-xs border border-indigo-100">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-                    <span>টেলিগ্রাম চ্যানেলে পাঠানো হচ্ছে... ({sendingProgress}/{generatedQuestions.length})</span>
-                  </div>
-                  <span className="font-bold">{Math.round((sendingProgress! / generatedQuestions.length) * 100)}%</span>
+                <div className="space-y-2">
+                  {countdownSeconds !== null ? (
+                    <div className="bg-amber-50 border border-amber-200 text-amber-900 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-amber-200/80 flex items-center justify-center text-amber-800 shrink-0">
+                          <Timer className="w-5 h-5 animate-spin" style={{ animationDuration: '3s' }} />
+                        </div>
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-slate-900 text-xs">
+                              প্রশ্ন {sendingProgress} / {totalToSend} পাঠানো ও poll_rapid এ সংরক্ষিত!
+                            </span>
+                            <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold flex items-center gap-1 border border-emerald-300">
+                              <Check className="w-3 h-3 text-emerald-600" /> Sent & Saved
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-amber-800 font-medium">
+                            কাউন্টডাউন শেষে এটি প্যানেল হতে রিমুভ হয়ে পরবর্তী প্রশ্ন পাঠানো হবে...
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2.5 self-end sm:self-auto">
+                        <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-xl border border-amber-300 shadow-sm">
+                          <Clock className="w-4 h-4 text-amber-600 animate-pulse" />
+                          <span className="text-base font-black font-mono text-amber-950">{countdownSeconds}s</span>
+                          <span className="text-[10px] font-bold text-amber-700">বাকি</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { cancelSendingRef.current = true; }}
+                          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-200 flex items-center gap-1 transition-all active:scale-95"
+                          title="পাঠানো থামান"
+                        >
+                          <Square className="w-3 h-3 fill-current" />
+                          <span>থামান</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-indigo-50 text-indigo-900 p-4 rounded-2xl flex items-center justify-between text-xs border border-indigo-200 shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin shrink-0" />
+                        <span className="font-bold text-slate-900">
+                          টেলিগ্রাম চ্যানেলে পাঠানো হচ্ছে... ({sendingProgress}/{totalToSend})
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold bg-white px-2.5 py-1 rounded-lg border border-indigo-200 text-indigo-700">
+                          {Math.round(((sendingProgress || 1) / Math.max(1, totalToSend)) * 100)}%
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => { cancelSendingRef.current = true; }}
+                          className="px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-100 hover:bg-rose-200 text-rose-700 border border-rose-200 flex items-center gap-1 transition-all"
+                          title="পাঠানো থামান"
+                        >
+                          <Square className="w-2.5 h-2.5 fill-current" />
+                          <span>থামান</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
               {sendResult && (
-                <div className="bg-emerald-50 text-emerald-800 p-4 rounded-xl flex items-center gap-2.5 text-xs border border-emerald-100 animate-bounce">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
-                  <span>{sendResult}</span>
+                <div className="bg-emerald-50 text-emerald-900 p-4 rounded-xl flex items-center gap-2.5 text-xs border border-emerald-200 shadow-sm">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <span className="font-semibold">{sendResult}</span>
                 </div>
               )}
 
@@ -871,10 +1141,32 @@ export default function RapidFirePage() {
               <button
                 onClick={handleSendToTelegram}
                 disabled={isSending}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-sm tracking-wider transition-all shadow-lg active:scale-[0.99] flex items-center justify-center gap-2"
+                className={`w-full text-white py-4 rounded-2xl font-black text-sm tracking-wider transition-all shadow-lg active:scale-[0.99] flex items-center justify-center gap-2 ${
+                  isSending
+                    ? countdownSeconds !== null
+                      ? 'bg-amber-600 hover:bg-amber-700'
+                      : 'bg-indigo-500 opacity-90'
+                    : 'bg-indigo-600 hover:bg-indigo-700'
+                }`}
               >
-                <Send className="w-4 h-4" />
-                <span>{isSending ? 'Sending to Telegram...' : 'Send to Telegram Channel'}</span>
+                {isSending ? (
+                  countdownSeconds !== null ? (
+                    <>
+                      <Clock className="w-4 h-4 animate-spin" style={{ animationDuration: '3s' }} />
+                      <span>পরবর্তী প্রশ্ন পাঠানো হবে {countdownSeconds}s পর...</span>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>টেলিগ্রামে পাঠানো হচ্ছে ({sendingProgress}/{totalToSend})...</span>
+                    </>
+                  )
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span>Send to Telegram Channel</span>
+                  </>
+                )}
               </button>
             </motion.div>
           )}
