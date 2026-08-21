@@ -253,3 +253,49 @@ export async function sendNoteToTelegram(
 
   return true;
 }
+
+export async function sendQuestionTextToTelegram(
+  question: QuizQuestion,
+  settings: TelegramSettings,
+  targetChatId?: string
+): Promise<boolean> {
+  const cleanChatId = (targetChatId || settings.activeChannelId || '').trim();
+  const cleanToken = ((settings as any)?.botToken || '').trim();
+
+  if (!cleanChatId) {
+    throw new Error("Target Channel is not selected!");
+  }
+
+  let finalQuestion = question.question;
+  if (settings.questionPrefix && settings.questionPrefix.trim() !== '') {
+    finalQuestion = `${settings.questionPrefix.trim()}\n${finalQuestion}`;
+  }
+
+  const url = `/api/telegram/sendMessage`;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (cleanToken) {
+    headers['x-telegram-bot-token'] = cleanToken;
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        chat_id: cleanChatId,
+        text: finalQuestion,
+      }),
+    });
+    
+    const data = await response.json();
+    if (!data.ok) {
+      throw new Error(data.description || data.error || 'Failed to send message to Telegram');
+    }
+    return true;
+  } catch (error: any) {
+    console.error("Error sending question text to Telegram:", error);
+    throw error;
+  }
+}

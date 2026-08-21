@@ -14,7 +14,7 @@ import {
 import { useAuthContext } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
 import { generateQuizFromText } from '../quiz/services/geminiService';
-import { sendQuizToTelegram } from '../quiz/services/telegramPollService';
+import { sendQuestionTextToTelegram } from '../quiz/services/telegramService';
 import { QuizQuestion } from '../../types';
 
 export default function RapidFirePage() {
@@ -95,7 +95,7 @@ export default function RapidFirePage() {
           topic: 'Rapid Fire Generation'
         };
 
-        const success = await sendQuizToTelegram(
+        const success = await sendQuestionTextToTelegram(
           questionPayload, 
           appState?.settings?.settings || {}, 
           activeChannelId
