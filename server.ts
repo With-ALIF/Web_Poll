@@ -296,6 +296,157 @@ async function startServer() {
   app.post("/api/photocard/generateOptions", (req, res) => photocardHandler(req, res));
   app.post("/api/exam-paper/generate", (req, res) => examPaperHandler(req, res));
   
+  app.post("/api/telegram/sendPoll", async (req, res) => {
+    try {
+      const token = process.env.TELEGRAM_BOT_TOKEN;
+      if (!token) {
+        return res.status(400).json({ error: "TELEGRAM_BOT_TOKEN environment variable is not configured. Please add it to Settings." });
+      }
+
+      const cleanToken = token.trim().replace(/^bot/i, '');
+      const { chat_id } = req.body;
+
+      if (!chat_id) {
+        return res.status(400).json({ error: "chat_id is required." });
+      }
+
+      const response = await fetch(`https://api.telegram.org/bot${cleanToken}/sendPoll`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req.body)
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.ok) {
+        return res.status(response.status || 400).json(data);
+      }
+
+      return res.status(200).json(data);
+    } catch (err: any) {
+      console.error("Error in Telegram sendPoll proxy:", err);
+      return res.status(500).json({ error: err.message || "Internal server error during Telegram poll request" });
+    }
+  });
+
+  app.post("/api/telegram/sendMessage", async (req, res) => {
+    try {
+      const token = process.env.TELEGRAM_BOT_TOKEN;
+      if (!token) {
+        return res.status(400).json({ error: "TELEGRAM_BOT_TOKEN environment variable is not configured. Please add it to Settings." });
+      }
+
+      const cleanToken = token.trim().replace(/^bot/i, '');
+      const { chat_id } = req.body;
+
+      if (!chat_id) {
+        return res.status(400).json({ error: "chat_id is required." });
+      }
+
+      const response = await fetch(`https://api.telegram.org/bot${cleanToken}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(req.body)
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.ok) {
+        return res.status(response.status || 400).json(data);
+      }
+
+      return res.status(200).json(data);
+    } catch (err: any) {
+      console.error("Error in Telegram sendMessage proxy:", err);
+      return res.status(500).json({ error: err.message || "Internal server error during Telegram sendMessage request" });
+    }
+  });
+
+  app.post("/api/telegram/sendPhoto", async (req, res) => {
+    try {
+      const token = process.env.TELEGRAM_BOT_TOKEN;
+      if (!token) {
+        return res.status(400).json({ error: "TELEGRAM_BOT_TOKEN environment variable is not configured. Please add it to Settings." });
+      }
+
+      const cleanToken = token.trim().replace(/^bot/i, '');
+      const { chat_id, image, photo, caption, parse_mode, reply_to_message_id } = req.body;
+
+      if (!chat_id) {
+        return res.status(400).json({ error: "chat_id is required." });
+      }
+
+      const rawPhoto = image || photo;
+      if (!rawPhoto) {
+        return res.status(400).json({ error: "image or photo data is required." });
+      }
+
+      const formData = new FormData();
+      formData.append('chat_id', chat_id);
+
+      if (rawPhoto.startsWith('http://') || rawPhoto.startsWith('https://')) {
+        formData.append('photo', rawPhoto);
+      } else {
+        const base64Data = rawPhoto.includes(',') ? rawPhoto.split(',')[1] : rawPhoto;
+        const buffer = Buffer.from(base64Data, 'base64');
+        const blob = new Blob([buffer], { type: 'image/jpeg' });
+        formData.append('photo', blob, 'image.jpg');
+      }
+
+      if (caption) {
+        formData.append('caption', caption);
+      }
+      if (parse_mode) {
+        formData.append('parse_mode', parse_mode);
+      }
+      if (reply_to_message_id) {
+        formData.append('reply_to_message_id', String(reply_to_message_id));
+      }
+
+      const response = await fetch(`https://api.telegram.org/bot${cleanToken}/sendPhoto`, {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.ok) {
+        return res.status(response.status || 400).json(data);
+      }
+
+      return res.status(200).json(data);
+    } catch (err: any) {
+      console.error("Error in Telegram sendPhoto proxy:", err);
+      return res.status(500).json({ error: err.message || "Internal server error during Telegram sendPhoto request" });
+    }
+  });
+
+  app.get("/api/telegram/getChat", async (req, res) => {
+    try {
+      const token = process.env.TELEGRAM_BOT_TOKEN;
+      if (!token) {
+        return res.status(400).json({ error: "TELEGRAM_BOT_TOKEN environment variable is not configured. Please add it to Settings." });
+      }
+
+      const cleanToken = token.trim().replace(/^bot/i, '');
+      const chatId = req.query.chat_id as string;
+
+      if (!chatId) {
+        return res.status(400).json({ error: "chat_id query parameter is required." });
+      }
+
+      const cleanChatId = chatId.trim();
+      const response = await fetch(`https://api.telegram.org/bot${cleanToken}/getChat?chat_id=${encodeURIComponent(cleanChatId)}`);
+      const data = await response.json();
+
+      if (!response.ok || !data.ok) {
+        return res.status(response.status || 400).json(data);
+      }
+
+      return res.status(200).json(data);
+    } catch (err: any) {
+      console.error("Error in Telegram getChat proxy:", err);
+      return res.status(500).json({ error: err.message || "Internal server error during Telegram getChat request" });
+    }
+  });
+  
   app.post("/api/admin/update-permissions", async (req, res) => {
     try {
       const isAdmin = await verifyAdmin(req);
@@ -327,6 +478,7 @@ async function startServer() {
         note: (permissions || []).includes('note'),
         suffix_edit: (permissions || []).includes('suffix-edit'),
         qbs: (permissions || []).includes('qbs'),
+        rapid_fire: (permissions || []).includes('rapid-fire'),
       };
 
       const { error } = await supabaseAdmin
@@ -420,6 +572,7 @@ async function startServer() {
         note: (permissions || []).includes('note'),
         suffix_edit: (permissions || []).includes('suffix-edit'),
         qbs: (permissions || []).includes('qbs'),
+        rapid_fire: (permissions || []).includes('rapid-fire'),
       };
 
       // 3. Upsert permissions in profile_permissions
@@ -580,6 +733,7 @@ async function startServer() {
              if (p.note) perms.push('note');
              if (p.suffix_edit) perms.push('suffix-edit');
              if (p.qbs) perms.push('qbs');
+              if (p.rapid_fire || p['rapid-fire']) perms.push('rapid-fire');
            }
          }
          

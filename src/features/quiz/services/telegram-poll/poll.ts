@@ -25,7 +25,7 @@ export async function sendQuizPollToTelegram(
     }
   }
 
-  const url = `https://api.telegram.org/bot${cleanToken}/sendPoll`;
+  const url = `/api/telegram/sendPoll`;
   const payload: any = {
     chat_id: cleanChatId,
     question: formatQuestionText(question, settings),

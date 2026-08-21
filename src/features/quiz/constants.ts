@@ -14,4 +14,4 @@ export const QUIZ_TOPICS = [
   "Others"
 ];
 
-export const FIXED_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || "";
+export const FIXED_BOT_TOKEN = "";

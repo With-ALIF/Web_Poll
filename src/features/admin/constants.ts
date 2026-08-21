@@ -6,7 +6,8 @@ import {
   Layout, 
   Table, 
   Camera, 
-  Type 
+  Type,
+  Zap
 } from 'lucide-react';
 
 export const AVAILABLE_PAGES: PageDefinition[] = [
@@ -19,5 +20,6 @@ export const AVAILABLE_PAGES: PageDefinition[] = [
   { id: 'photocard', name: 'PhotoCard', path: '/photocard', icon: Layout },
   { id: 'exam-paper', name: 'Exam Paper', path: '/exam-paper', icon: FileEdit },
   { id: 'note', name: 'Smart Note', path: '/note', icon: FileEdit },
+  { id: 'rapid-fire', name: 'Rapid Fire', path: '/rapid-fire', icon: Zap },
   { id: 'suffix-edit', name: 'Can Edit Suffix', path: '#', icon: Type }
 ];

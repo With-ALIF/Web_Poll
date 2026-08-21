@@ -106,6 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               if (p.note) perms.push('note');
               if (p.suffix_edit) perms.push('suffix-edit');
               if (p.qbs) perms.push('qbs');
+              if (p.rapid_fire || p['rapid-fire']) perms.push('rapid-fire');
             }
           }
           const userPerms = perms;
@@ -164,6 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               if (p.note) perms.push('note');
               if (p.suffix_edit) perms.push('suffix-edit');
               if (p.qbs) perms.push('qbs');
+              if (p.rapid_fire || p['rapid-fire']) perms.push('rapid-fire');
               
               setProfile((prev: any) => ({ ...prev, permissions: perms }));
             }

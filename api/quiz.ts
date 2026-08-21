@@ -8,8 +8,8 @@ let aiClients: GoogleGenAI[] = [];
 let currentClientIndex = 0;
 
 // Module-level fallback model lists that auto-heal if a model gets exhausted (429/503)
-let activeTextModels = ["gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-flash-latest"];
-let activeImageModels = ["gemini-3.1-flash-lite", "gemini-3.1-flash-image", "gemini-3.5-flash"];
+let activeTextModels = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
+let activeImageModels = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-flash-latest"];
 
 function demoteModel(modelList: string[], modelName: string, serviceName: string) {
   const index = modelList.indexOf(modelName);
@@ -104,15 +104,15 @@ However, you MUST keep the core question statement EXACTLY 100% identical word-f
 
   let modelAttempt = 0;
 
-    for (let attempt = 0; attempt <= retries; attempt++) {
-    const currentModel = activeTextModels[0];
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const currentModel = activeTextModels[attempt % activeTextModels.length];
     try {
       const aiClient = getAI();
       console.log(`[Quiz API] Text Attempt ${attempt}: Using model ${currentModel}`);
       
-      const interaction = await aiClient.interactions.create({
+      const response = await aiClient.models.generateContent({
         model: currentModel,
-        input: `You are an expert quiz creator. Extract exactly ${count} multiple-choice questions from the provided text. 
+        contents: `You are an expert quiz creator. Extract exactly ${count} multiple-choice questions from the provided text. 
 The text may be unstructured, in different languages (including Bengali), messy, or in CSV format. 
 If the input is CSV, map the options and the correct answer properly (note that CSV answers might be 1-indexed, e.g., 1, 2, 3, 4, but you MUST output a 0-indexed correctOptionIndex, e.g., 0, 1, 2, 3).
 Identify key facts and convert them into a quiz format. 
@@ -128,45 +128,43 @@ The output must be in the language of the input text.
 
 Text to process:
 ${text}`,
-        response_format: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              question: { 
-                type: Type.STRING,
-                description: "The quiz question. Max 250 characters."
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                question: { 
+                  type: Type.STRING,
+                  description: "The quiz question. Max 250 characters."
+                },
+                options: { 
+                  type: Type.ARRAY, 
+                  items: { type: Type.STRING },
+                  description: "Exactly 4 options for the multiple choice question. Max 90 characters per option."
+                },
+                correctOptionIndex: { 
+                  type: Type.INTEGER,
+                  description: "The index of the correct option (0 to 3). If the source says answer is 4, this should be 3."
+                },
+                explanation: { 
+                  type: Type.STRING,
+                  description: "A short explanation of why the answer is correct. Max 150 characters."
+                }
               },
-              options: { 
-                type: Type.ARRAY, 
-                items: { type: Type.STRING },
-                description: "Exactly 4 options for the multiple choice question. Max 90 characters per option."
-              },
-              correctOptionIndex: { 
-                type: Type.INTEGER,
-                description: "The index of the correct option (0 to 3). If the source says answer is 4, this should be 3."
-              },
-              explanation: { 
-                type: Type.STRING,
-                description: "A short explanation of why the answer is correct. Max 150 characters."
-              }
-            },
-            required: ["question", "options", "correctOptionIndex", "explanation"]
+              required: ["question", "options", "correctOptionIndex", "explanation"]
+            }
           }
         }
       });
 
-      const lastStep = interaction.steps[interaction.steps.length - 1];
-      if (!lastStep || lastStep.type !== 'model_output') {
+      const textOutput = response.text;
+      if (!textOutput) {
         throw new Error("AI returned an empty response or failed to produce output.");
       }
 
-      const textContent = lastStep.content?.find(c => c.type === 'text');
-      if (!textContent || !textContent.text) {
-        throw new Error("AI returned an empty text content.");
-      }
-
-      let jsonStr = textContent.text.trim();
+      let jsonStr = textOutput.trim();
       if (jsonStr.includes("```json")) {
         jsonStr = jsonStr.split("```json")[1].split("```")[0].trim();
       } else if (jsonStr.includes("```")) {
@@ -180,13 +178,14 @@ ${text}`,
 
       return JSON.parse(jsonStr);
     } catch (error: any) {
-      const errorMsg = error?.message || String(error);
-      const isRateLimit = errorMsg.includes('429') || errorMsg.includes('Quota exceeded');
+      const errorMsg = typeof error === 'object' ? (error?.message || JSON.stringify(error)) : String(error);
+      const isNotFound = errorMsg.includes('404') || errorMsg.includes('not found') || errorMsg.includes('NOT_FOUND');
+      const isRateLimit = errorMsg.includes('429') || errorMsg.includes('Quota exceeded') || errorMsg.includes('RESOURCE_EXHAUSTED');
       const isForbidden = errorMsg.includes('403') || errorMsg.includes('leaked') || errorMsg.includes('PERMISSION_DENIED');
       const isJsonError = errorMsg.includes('json') || errorMsg.includes('Unexpected end of JSON');
       const isServiceUnavailable = errorMsg.includes('503') || errorMsg.includes('UNAVAILABLE') || errorMsg.includes('temporary') || errorMsg.includes('high demand') || errorMsg.includes('Service Unavailable');
       
-      if (isRateLimit || isServiceUnavailable) {
+      if (isNotFound || isRateLimit || isServiceUnavailable) {
         demoteModel(activeTextModels, currentModel, "Quiz API Text");
       }
 
@@ -202,7 +201,7 @@ ${text}`,
       console.error(`[Quiz API] Text generation failed after all attempts. Final error on ${currentModel}:`, error.message || error);
 
       if (isServiceUnavailable) {
-        throw new Error("Gemini সার্ভারে বর্তমানে অত্যধিক চাপ রয়েছে (503 High Demand)। অনুগ্রহ করে কয়েক সেকেন্ড পর আবার চেষ্টা করুন অথবা একটি নতুন API Key যুক্ত করুন।");
+        throw new Error("Gemini সার্ভারে সাময়িক চাপ রয়েছে (503 High Demand)। কয়েক সেকেন্ড পর পুনরায় চেষ্টা করুন।");
       }
       
       throw error;
@@ -215,23 +214,22 @@ ${text}`,
 export async function generateQuizFromImageLogic(imageBase64: string, mimeType: string, count: number = 5, retries: number = 5): Promise<any[]> {
   let modelAttempt = 0;
 
-    for (let attempt = 0; attempt <= retries; attempt++) {
-    const currentModel = activeImageModels[0];
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const currentModel = activeImageModels[attempt % activeImageModels.length];
     try {
       const aiClient = getAI();
       console.log(`[Quiz API] Image Attempt ${attempt}: Using model ${currentModel}`);
       
-      const interaction = await aiClient.interactions.create({
+      const response = await aiClient.models.generateContent({
         model: currentModel,
-        input: [
+        contents: [
           {
-            type: 'image',
-            data: imageBase64.split(',')[1] || imageBase64,
-            mime_type: mimeType
+            inlineData: {
+              data: imageBase64.split(',')[1] || imageBase64,
+              mimeType: mimeType
+            }
           },
-          {
-            type: 'text',
-            text: `You are an expert quiz creator. Extract exactly ${count} multiple-choice questions from the provided image. 
+          `You are an expert quiz creator. Extract exactly ${count} multiple-choice questions from the provided image. 
 The image contains questions and options. Extract them faithfully.
 Note that the answers might be indicated in the image (e.g., circled, bold, or at the end).
 Ensure each question has exactly 4 options. 
@@ -241,47 +239,44 @@ The output must be in the language of the input image.
 Identify key facts and convert them into a quiz format. 
 Map the options and the correct answer properly.
 You MUST output a 0-indexed correctOptionIndex (e.g., 0, 1, 2, 3).`
-          }
         ],
-        response_format: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              question: { 
-                type: Type.STRING,
-                description: "The quiz question. Max 250 characters."
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                question: { 
+                  type: Type.STRING,
+                  description: "The quiz question. Max 250 characters."
+                },
+                options: { 
+                  type: Type.ARRAY, 
+                  items: { type: Type.STRING },
+                  description: "Exactly 4 options for the multiple choice question. Max 90 characters per option."
+                },
+                correctOptionIndex: { 
+                  type: Type.INTEGER,
+                  description: "The index of the correct option (0 to 3)."
+                },
+                explanation: { 
+                  type: Type.STRING,
+                  description: "A short explanation. Max 150 characters."
+                }
               },
-              options: { 
-                type: Type.ARRAY, 
-                items: { type: Type.STRING },
-                description: "Exactly 4 options for the multiple choice question. Max 90 characters per option."
-              },
-              correctOptionIndex: { 
-                type: Type.INTEGER,
-                description: "The index of the correct option (0 to 3)."
-              },
-              explanation: { 
-                type: Type.STRING,
-                description: "A short explanation. Max 150 characters."
-              }
-            },
-            required: ["question", "options", "correctOptionIndex", "explanation"]
+              required: ["question", "options", "correctOptionIndex", "explanation"]
+            }
           }
         }
       });
 
-      const lastStep = interaction.steps[interaction.steps.length - 1];
-      if (!lastStep || lastStep.type !== 'model_output') {
-        throw new Error("Failed to generate content: empty response or invalid step type.");
+      const textOutput = response.text;
+      if (!textOutput) {
+        throw new Error("Failed to generate content: empty response or invalid output.");
       }
 
-      const textStep = lastStep.content?.find(c => c.type === 'text');
-      if (!textStep || !textStep.text) {
-        throw new Error("Failed to generate content: empty text output.");
-      }
-
-      let jsonStr = textStep.text.trim();
+      let jsonStr = textOutput.trim();
       if (jsonStr.includes("```json")) {
         jsonStr = jsonStr.split("```json")[1].split("```")[0].trim();
       } else if (jsonStr.includes("```")) {
@@ -295,13 +290,14 @@ You MUST output a 0-indexed correctOptionIndex (e.g., 0, 1, 2, 3).`
 
       return JSON.parse(jsonStr);
     } catch (error: any) {
-      const errorMsg = error?.message || String(error);
-      const isRateLimit = errorMsg.includes('429') || errorMsg.includes('Quota exceeded');
+      const errorMsg = typeof error === 'object' ? (error?.message || JSON.stringify(error)) : String(error);
+      const isNotFound = errorMsg.includes('404') || errorMsg.includes('not found') || errorMsg.includes('NOT_FOUND');
+      const isRateLimit = errorMsg.includes('429') || errorMsg.includes('Quota exceeded') || errorMsg.includes('RESOURCE_EXHAUSTED');
       const isForbidden = errorMsg.includes('403') || errorMsg.includes('leaked') || errorMsg.includes('PERMISSION_DENIED');
       const isJsonError = errorMsg.includes('json') || errorMsg.includes('Unexpected end of JSON');
       const isServiceUnavailable = errorMsg.includes('503') || errorMsg.includes('UNAVAILABLE') || errorMsg.includes('temporary') || errorMsg.includes('high demand') || errorMsg.includes('Service Unavailable');
       
-      if (isRateLimit || isServiceUnavailable) {
+      if (isNotFound || isRateLimit || isServiceUnavailable) {
         demoteModel(activeImageModels, currentModel, "Quiz API Image");
       }
 
@@ -317,7 +313,7 @@ You MUST output a 0-indexed correctOptionIndex (e.g., 0, 1, 2, 3).`
       console.error(`[Quiz API] Image generation failed after all attempts. Final error on ${currentModel}:`, error.message || error);
 
       if (isServiceUnavailable) {
-        throw new Error("Gemini সার্ভারে বর্তমানে অত্যধিক চাপ রয়েছে (503 High Demand)। অনুগ্রহ করে কয়েক সেকেন্ড পর আবার চেষ্টা করুন অথবা একটি নতুন API Key যুক্ত করুন।");
+        throw new Error("Gemini সার্ভারে সাময়িক চাপ রয়েছে (503 High Demand)। কয়েক সেকেন্ড পর পুনরায় চেষ্টা করুন।");
       }
       
       throw error;

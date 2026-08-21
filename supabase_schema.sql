@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS public.profile_permissions (
   note BOOLEAN NOT NULL DEFAULT FALSE,
   suffix_edit BOOLEAN NOT NULL DEFAULT FALSE,
   qbs BOOLEAN NOT NULL DEFAULT FALSE,
+  rapid_fire BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -285,3 +286,23 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Create Telegram Question Queue Table for simplified campaigning
+CREATE TABLE IF NOT EXISTS public.telegram_question_queue (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  question_text TEXT NOT NULL,
+  target_channel TEXT NOT NULL,
+  interval_seconds INT NOT NULL DEFAULT 30,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  sent_at TIMESTAMPTZ
+);
+
+-- Enable RLS
+ALTER TABLE public.telegram_question_queue ENABLE ROW LEVEL SECURITY;
+
+-- Question Queue Policy
+DROP POLICY IF EXISTS "Users can manage their own question queue." ON public.telegram_question_queue;
+CREATE POLICY "Users can manage their own question queue." ON public.telegram_question_queue
+  FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);

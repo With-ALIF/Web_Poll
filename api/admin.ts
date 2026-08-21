@@ -133,6 +133,7 @@ export default async function handler(req: any, res: any) {
               if (p.note) perms.push('note');
               if (p.suffix_edit) perms.push('suffix-edit');
               if (p.qbs) perms.push('qbs');
+              if (p.rapid_fire || p['rapid-fire']) perms.push('rapid-fire');
             }
           }
           
@@ -216,6 +217,7 @@ export default async function handler(req: any, res: any) {
           note: (permissions || []).includes('note'),
           suffix_edit: (permissions || []).includes('suffix-edit'),
           qbs: (permissions || []).includes('qbs'),
+          rapid_fire: (permissions || []).includes('rapid-fire'),
         };
 
         const { error: permConfigError } = await supabaseAdmin
@@ -308,6 +310,7 @@ export default async function handler(req: any, res: any) {
           note: (permissions || []).includes('note'),
           suffix_edit: (permissions || []).includes('suffix-edit'),
           qbs: (permissions || []).includes('qbs'),
+          rapid_fire: (permissions || []).includes('rapid-fire'),
         };
 
         const { error } = await supabaseAdmin

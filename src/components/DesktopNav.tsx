@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Home, FileText, CheckSquare, Layout, FileSpreadsheet, Info, Shield, BarChart3, Database, Settings, Camera, Sparkles } from 'lucide-react';
+import { Home, FileText, CheckSquare, Layout, FileSpreadsheet, Info, Shield, BarChart3, Database, Settings, Camera, Sparkles, Zap } from 'lucide-react';
 import { useAuth } from '../features/auth/hooks/useAuth';
 
 export default function DesktopNav({ user }: { user: any }) {
@@ -81,6 +81,12 @@ export default function DesktopNav({ user }: { user: any }) {
         <NavLink to="/photocard" className={linkClass}>
           <Sparkles className="w-4 h-4" />
           PhotoCard
+        </NavLink>
+      )}
+      {user && hasPermission('rapid-fire') && (
+        <NavLink to="/rapid-fire" className={linkClass}>
+          <Zap className="w-4 h-4" />
+          Rapid Fire
         </NavLink>
       )}
       {user && !isAdmin && hasPermission('formats') && (

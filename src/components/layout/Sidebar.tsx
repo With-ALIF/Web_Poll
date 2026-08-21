@@ -21,6 +21,7 @@ import {
   Database,
   FileSpreadsheet,
   Layout,
+  Zap,
   LogOut
 } from 'lucide-react';
 import { useAuth } from '../../features/auth/hooks/useAuth';
@@ -92,6 +93,7 @@ export const Sidebar: React.FC = () => {
             {hasPermission('qbs') && <NavItem to="/qbs" icon={Database} label="QBS" />}
             {hasPermission('exam-paper') && <NavItem to="/exam-paper" icon={FileText} label="ExamPaper" />}
             {hasPermission('photocard') && <NavItem to="/photocard" icon={Sparkles} label="PhotoCard" />}
+            {hasPermission('rapid-fire') && <NavItem to="/rapid-fire" icon={Zap} label="Rapid Fire" />}
             {hasPermission('formats') && <NavItem to="/channel-formats" icon={Layout} label="Formats" />}
             {hasPermission('csv-modifier') && <NavItem to="/csv-modifier" icon={FileSpreadsheet} label="CSV Modifier" />}
           </>

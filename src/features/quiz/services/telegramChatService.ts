@@ -1,10 +1,9 @@
-export async function getChatDetails(chatId: string, botToken: string) {
-  const cleanToken = botToken.trim().replace(/^bot/i, '');
+export async function getChatDetails(chatId: string, _botToken?: string) {
   const cleanChatId = chatId.trim();
 
-  if (!cleanChatId || !cleanToken) return null;
+  if (!cleanChatId) return null;
 
-  const url = `https://api.telegram.org/bot${cleanToken}/getChat?chat_id=${cleanChatId}`;
+  const url = `/api/telegram/getChat?chat_id=${encodeURIComponent(cleanChatId)}`;
 
   try {
     const response = await fetch(url);
@@ -13,7 +12,7 @@ export async function getChatDetails(chatId: string, botToken: string) {
     if (data.ok) {
       return data.result;
     }
-    throw new Error(data.description || 'Chat not found');
+    throw new Error(data.description || data.error || 'Chat not found');
   } catch (error) {
     throw error;
   }

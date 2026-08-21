@@ -6,3 +6,11 @@ coverage/
 *.log
 .env*
 !.env.example
+# Local utility/debug scripts
+check_*.js
+check_*.cjs
+fetch_*.js
+fetch_*.cjs
+
+node_modules/
+package-lock.json

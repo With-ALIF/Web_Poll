@@ -16,7 +16,8 @@ import {
   BarChart3,
   Database,
   Camera,
-  Sparkles
+  Sparkles,
+  Zap
 } from 'lucide-react';
 import { useAuth } from '../features/auth/hooks/useAuth';
 
@@ -127,6 +128,13 @@ export default function MobileMenu({ user, profilePhoto, displayName, logout, to
           <NavLink to="/photocard" onClick={toggleMenu} className={linkClass}>
             <Sparkles className="w-5 h-5" />
             PhotoCard
+          </NavLink>
+        )}
+        
+        {user && hasPermission('rapid-fire') && (
+          <NavLink to="/rapid-fire" onClick={toggleMenu} className={linkClass}>
+            <Zap className="w-5 h-5" />
+            Rapid Fire
           </NavLink>
         )}
         
