@@ -18,7 +18,10 @@ import {
   BookmarkPlus,
   ChevronDown,
   ChevronUp,
-  Save
+  Save,
+  BookOpen,
+  Tag,
+  Database
 } from 'lucide-react';
 import { useAuthContext } from '../../context/AuthContext';
 import { useApp } from '../../context/AppContext';
@@ -26,11 +29,14 @@ import { generateQuizFromText } from '../quiz/services/geminiService';
 import { sendQuestionTextToTelegram } from '../quiz/services/telegramService';
 import { QuizQuestion } from '../../types';
 import { generateUUID } from '../../lib/uuid';
+import { batchSaveRapidQuestions, saveRapidQuestion } from './services/rapidFireDbService';
 
 interface RapidFireBatch {
   id: string;
   timestamp: number;
   snippet: string;
+  topic?: string;
+  subject?: string;
   questions: Omit<QuizQuestion, 'id' | 'status'>[];
 }
 
@@ -39,11 +45,30 @@ const STORAGE_KEYS = {
   INPUT_TEXT: 'rapid_fire_input_text',
   DELAY_SECONDS: 'rapid_fire_delay_seconds',
   QUESTION_COUNT: 'rapid_fire_question_count',
+  TOPIC: 'rapid_fire_topic',
+  SUBJECT: 'rapid_fire_subject',
   HISTORY: 'rapid_fire_saved_batches'
 };
 
+const COMMON_SUBJECTS = [
+  'বাংলা',
+  'বাংলা ১ম পত্র',
+  'বাংলা ২য় পত্র',
+  'ইংরেজি',
+  'সাধারণ জ্ঞান',
+  'পদার্থ বিজ্ঞান ১ম পত্র',
+  'পদার্থ বিজ্ঞান ২য় পত্র',
+  'রসায়ন ১ম পত্র',
+  'রসায়ন ২য় পত্র',
+  'জীব বিজ্ঞান ১ম পত্র',
+  'জীব বিজ্ঞান ২য় পত্র',
+  'উচ্চতর গণিত ১ম পত্র',
+  'উচ্চতর গণিত ২য় পত্র',
+  'অন্যান্য'
+];
+
 export default function RapidFirePage() {
-  const { loading: authLoading } = useAuthContext();
+  const { user, loading: authLoading } = useAuthContext();
   const appState = useApp();
   
   // Persistent initial values from localStorage
@@ -54,6 +79,14 @@ export default function RapidFirePage() {
     const saved = localStorage.getItem(STORAGE_KEYS.QUESTION_COUNT);
     return saved ? parseInt(saved, 10) || 10 : 10;
   });
+  const [subject, setSubject] = useState<string>(() => {
+    return localStorage.getItem(STORAGE_KEYS.SUBJECT) || 'সাধারণ জ্ঞান';
+  });
+  const [customSubject, setCustomSubject] = useState<string>('');
+  const [topic, setTopic] = useState<string>(() => {
+    return localStorage.getItem(STORAGE_KEYS.TOPIC) || '';
+  });
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedQuestions, setGeneratedQuestions] = useState<Omit<QuizQuestion, 'id' | 'status'>[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.ACTIVE_QUESTIONS);
@@ -83,7 +116,8 @@ export default function RapidFirePage() {
 
   const [error, setError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | number | null>(null);
-  const [exportedSuccess, setExportedSuccess] = useState(false);
+  const [savedDbNotice, setSavedDbNotice] = useState<string | null>(null);
+  const [isSavingDb, setIsSavingDb] = useState(false);
   
   // Telegram states
   const [selectedChannelId, setSelectedChannelId] = useState('');
@@ -108,6 +142,14 @@ export default function RapidFirePage() {
   }, [questionCount]);
 
   useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.SUBJECT, subject);
+  }, [subject]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.TOPIC, topic);
+  }, [topic]);
+
+  useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.ACTIVE_QUESTIONS, JSON.stringify(generatedQuestions));
   }, [generatedQuestions]);
 
@@ -118,6 +160,10 @@ export default function RapidFirePage() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(historyBatches));
   }, [historyBatches]);
+
+  // Effective Subject
+  const effectiveSubject = subject === 'custom' ? customSubject.trim() || 'অন্যান্য' : subject;
+  const effectiveTopic = topic.trim() || 'Rapid Fire';
 
   // Get active channel from settings
   const channels = appState?.settings?.settings?.channels || [];
@@ -134,7 +180,7 @@ export default function RapidFirePage() {
     setIsGenerating(true);
     setSendResult(null);
     setSendingProgress(null);
-    setExportedSuccess(false);
+    setSavedDbNotice(null);
     
     try {
       const finalCount = typeof questionCount === 'number' && questionCount > 0 ? Math.min(30, questionCount) : 10;
@@ -151,9 +197,21 @@ export default function RapidFirePage() {
         id: `batch-${Date.now()}`,
         timestamp: Date.now(),
         snippet: inputText.trim().slice(0, 100) + (inputText.trim().length > 100 ? '...' : ''),
+        subject: effectiveSubject,
+        topic: effectiveTopic,
         questions: response
       };
       setHistoryBatches(prev => [newBatch, ...prev.slice(0, 29)]); // keep up to 30 batches
+
+      // Automatically store in poll_rapid table if user is logged in
+      if (user?.id) {
+        const questionsPayload = response.map(q => ({
+          question: q.question,
+          topic: effectiveTopic,
+          subject: effectiveSubject
+        }));
+        batchSaveRapidQuestions(user.id, questionsPayload, effectiveTopic, effectiveSubject).catch(() => {});
+      }
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'প্রশ্ন তৈরি করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।');
@@ -170,11 +228,23 @@ export default function RapidFirePage() {
     setInputText('');
     setSendResult(null);
     setError(null);
+    setSavedDbNotice(null);
   };
 
   const handleRestoreBatch = (batch: RapidFireBatch) => {
     setGeneratedQuestions(batch.questions);
     setInputText(batch.snippet);
+    if (batch.subject) {
+      if (COMMON_SUBJECTS.includes(batch.subject)) {
+        setSubject(batch.subject);
+      } else {
+        setSubject('custom');
+        setCustomSubject(batch.subject);
+      }
+    }
+    if (batch.topic) {
+      setTopic(batch.topic);
+    }
     setSendResult(null);
     setError(null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -208,24 +278,28 @@ export default function RapidFirePage() {
     setGeneratedQuestions(prev => prev.filter((_, idx) => idx !== indexToDelete));
   };
 
-  const handleSaveToMainQuizBank = () => {
+  const handleSaveToPollRapidTable = async () => {
     if (generatedQuestions.length === 0) return;
     
-    const formatted: QuizQuestion[] = generatedQuestions.map((q) => ({
-      id: generateUUID(),
+    setIsSavingDb(true);
+    setSavedDbNotice(null);
+
+    const questionsPayload = generatedQuestions.map(q => ({
       question: q.question,
-      options: q.options || [],
-      correctOptionIndex: q.correctOptionIndex ?? 0,
-      explanation: q.explanation || '',
-      status: 'pending',
-      topic: 'Rapid Fire'
+      topic: effectiveTopic,
+      subject: effectiveSubject
     }));
 
-    if (appState?.quiz?.setQuestions) {
-      appState.quiz.setQuestions(prev => [...formatted, ...prev]);
-      setExportedSuccess(true);
-      setTimeout(() => setExportedSuccess(false), 3000);
+    const userId = user?.id || 'anonymous';
+    const count = await batchSaveRapidQuestions(userId, questionsPayload, effectiveTopic, effectiveSubject);
+
+    setIsSavingDb(false);
+    if (count > 0) {
+      setSavedDbNotice(`✅ ${count} টি প্রশ্ন 'poll_rapid' ব্যাংকে সংরক্ষিত হয়েছে!`);
+    } else {
+      setSavedDbNotice(`💾 প্রশ্নগুলো লোকাল মেমোরিতে নিরাপদে সংরক্ষিত আছে।`);
     }
+    setTimeout(() => setSavedDbNotice(null), 4000);
   };
 
   const handleSendToTelegram = async () => {
@@ -255,7 +329,7 @@ export default function RapidFirePage() {
           correctOptionIndex: q.correctOptionIndex ?? 0,
           explanation: q.explanation || '',
           status: 'pending',
-          topic: 'Rapid Fire Generation'
+          topic: `${effectiveSubject} - ${effectiveTopic}`
         };
 
         const success = await sendQuestionTextToTelegram(
@@ -297,7 +371,7 @@ export default function RapidFirePage() {
           </div>
           <div>
             <h1 className="text-xl font-black text-slate-800 tracking-tight">Rapid Fire Generator</h1>
-            <p className="text-slate-500 text-xs">আপনার টেক্সট থেকে দ্রুত প্রশ্ন তৈরি করে লোকালি সংরক্ষণ ও সরাসরি টেলিগ্রামে শেয়ার করুন।</p>
+            <p className="text-slate-500 text-xs">বিষয় ও টপিক সিলেক্ট করে দ্রুত প্রশ্ন তৈরি, লোকাল ও ডাটাবেজে (poll_rapid) সংরক্ষণ করুন।</p>
           </div>
         </div>
 
@@ -384,6 +458,22 @@ export default function RapidFirePage() {
                               {batch.questions.length} টি প্রশ্ন
                             </span>
                           </div>
+                          
+                          {(batch.subject || batch.topic) && (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {batch.subject && (
+                                <span className="text-[10px] bg-slate-700 text-indigo-300 px-1.5 py-0.5 rounded font-medium">
+                                  📚 {batch.subject}
+                                </span>
+                              )}
+                              {batch.topic && (
+                                <span className="text-[10px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded font-medium">
+                                  🏷️ {batch.topic}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
                           <p className="text-xs text-slate-200 line-clamp-2 leading-relaxed">
                             {batch.snippet || 'টেক্সট থেকে তৈরি'}
                           </p>
@@ -425,6 +515,59 @@ export default function RapidFirePage() {
       {/* Main Container */}
       <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-xl space-y-6">
         
+        {/* Subject & Topic Selection Controls */}
+        <div className="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center gap-2 text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+            <BookOpen className="w-4 h-4 text-indigo-600" />
+            <span>বিষয় ও টপিক নির্ধারণ (Subject & Topic)</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Subject selector */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                <span>বিষয় (Subject):</span>
+              </label>
+              <div className="flex gap-2">
+                <select
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  {COMMON_SUBJECTS.map((sub) => (
+                    <option key={sub} value={sub}>{sub}</option>
+                  ))}
+                  <option value="custom">✍️ কাস্টম বিষয় লিখুন...</option>
+                </select>
+                {subject === 'custom' && (
+                  <input
+                    type="text"
+                    placeholder="বিষয়ের নাম লিখুন"
+                    value={customSubject}
+                    onChange={(e) => setCustomSubject(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* Topic Input */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-600 flex items-center gap-1">
+                <Tag className="w-3 h-3 text-slate-400" />
+                <span>টপিক / অধ্যায় (Topic / Chapter):</span>
+              </label>
+              <input
+                type="text"
+                placeholder="যেমন: প্রাচীন বাংলা, ত্রিকোণমিতি, ইত্যাদি..."
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </div>
+        </div>
+
         {/* Row: Input Text & N Questions */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
           <div className="flex items-center gap-2">
@@ -536,13 +679,13 @@ export default function RapidFirePage() {
               className="border-t border-slate-100 pt-6 space-y-6"
             >
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-indigo-50/50 p-3.5 rounded-2xl border border-indigo-100/80">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
                   <h3 className="text-xs font-black text-slate-800 uppercase tracking-wider">
-                    Generated Questions ({generatedQuestions.length})
+                    Questions ({generatedQuestions.length})
                   </h3>
                   <span className="text-[11px] font-bold text-indigo-700 bg-white px-2 py-0.5 rounded-md border border-indigo-200">
-                    💾 লোকালি সংরক্ষিত
+                    📚 {effectiveSubject} {effectiveTopic && `• ${effectiveTopic}`}
                   </span>
                 </div>
 
@@ -567,24 +710,23 @@ export default function RapidFirePage() {
 
                   <button
                     type="button"
-                    onClick={handleSaveToMainQuizBank}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-sm"
-                    title="মূল কুইজ ব্যাংকে যোগ করুন"
+                    disabled={isSavingDb}
+                    onClick={handleSaveToPollRapidTable}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-sm disabled:opacity-50"
+                    title="poll_rapid টেবিলে সংরক্ষণ করুন"
                   >
-                    {exportedSuccess ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-white" />
-                        <span>ব্যাংকে যোগ হয়েছে!</span>
-                      </>
-                    ) : (
-                      <>
-                        <BookmarkPlus className="w-3.5 h-3.5" />
-                        <span>কুইজ ব্যাংকে রাখুন</span>
-                      </>
-                    )}
+                    <Database className="w-3.5 h-3.5" />
+                    <span>{isSavingDb ? 'সংরক্ষণ হচ্ছে...' : 'poll_rapid এ সেভ'}</span>
                   </button>
                 </div>
               </div>
+
+              {savedDbNotice && (
+                <div className="bg-emerald-50 text-emerald-800 p-3 rounded-xl flex items-center gap-2 text-xs border border-emerald-100">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="font-semibold">{savedDbNotice}</span>
+                </div>
+              )}
 
               {/* Numbered Questions List */}
               <div className="space-y-3">
@@ -741,3 +883,4 @@ export default function RapidFirePage() {
     </div>
   );
 }
+
