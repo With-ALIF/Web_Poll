@@ -1,5 +1,6 @@
 import { supabase } from '../../../lib/supabase';
 import { QuizQuestion } from '../../../types';
+import { ensureUUID } from '../../../lib/uuid';
 
 const TABLE_NAME = 'poll_questions';
 
@@ -63,8 +64,9 @@ const cleanObj = (obj: any) => {
 
 export const saveQuiz = async (userId: string, question: QuizQuestion) => {
   try {
+    const safeId = ensureUUID(question.id);
     const payload = cleanObj({
-      id: question.id,
+      id: safeId,
       user_id: userId,
       question: question.question,
       option_a: question.options[0] || null,
@@ -104,7 +106,7 @@ export const deleteQuiz = async (id: string) => {
 export const batchSaveQuizzes = async (userId: string, questions: QuizQuestion[]) => {
   try {
     const payloads = questions.map(q => cleanObj({
-      id: q.id,
+      id: ensureUUID(q.id),
       user_id: userId,
       question: q.question,
       option_a: q.options[0] || null,

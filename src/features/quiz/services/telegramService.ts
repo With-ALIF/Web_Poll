@@ -266,10 +266,7 @@ export async function sendQuestionTextToTelegram(
     throw new Error("Target Channel is not selected!");
   }
 
-  let finalQuestion = question.question;
-  if (settings.questionPrefix && settings.questionPrefix.trim() !== '') {
-    finalQuestion = `${settings.questionPrefix.trim()}\n${finalQuestion}`;
-  }
+  const finalQuestion = question.question;
 
   const url = `/api/telegram/sendMessage`;
   const headers: Record<string, string> = {

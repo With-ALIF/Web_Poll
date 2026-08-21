@@ -1,5 +1,6 @@
 import { supabase } from '../../../lib/supabase';
 import { QuizQuestion } from '../../../types';
+import { ensureUUID } from '../../../lib/uuid';
 
 const TABLE_NAME = 'drafts';
 
@@ -111,7 +112,7 @@ export const saveDraft = async (userId: string, draft: QuizQuestion) => {
 
   try {
     const payload = cleanObj({
-      id: draft.id,
+      id: ensureUUID(draft.id),
       user_id: userId,
       question: draft.question,
       option_a: draft.options[0] || null,
@@ -203,7 +204,7 @@ export const batchSaveDrafts = async (userId: string, drafts: QuizQuestion[]) =>
 
   try {
     const payloads = drafts.map(d => cleanObj({
-      id: d.id,
+      id: ensureUUID(d.id),
       user_id: userId,
       question: d.question,
       option_a: d.options[0] || null,
