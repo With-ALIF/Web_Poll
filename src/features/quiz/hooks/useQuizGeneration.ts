@@ -10,7 +10,23 @@ export function useQuizGeneration(
 ) {
   const [inputText, setInputText] = useState('');
   const [lastInputText, setLastInputText] = useState('');
-  const [questionCount, setQuestionCount] = useState(5);
+  const [questionCount, setQuestionCountInternal] = useState<number>(() => {
+    const saved = localStorage.getItem('quiz_question_count');
+    if (saved) {
+      const parsed = parseInt(saved, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        return Math.min(50, parsed);
+      }
+    }
+    return 5;
+  });
+
+  const setQuestionCount = (count: number) => {
+    setQuestionCountInternal(count);
+    if (typeof count === 'number' && count > 0) {
+      localStorage.setItem('quiz_question_count', Math.min(50, count).toString());
+    }
+  };
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [preserveBoardInfo, setPreserveBoardInfoInternal] = useState<boolean>(() => {
